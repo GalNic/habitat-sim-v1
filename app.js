@@ -1,27 +1,24 @@
-// ==============================
-// V1.3.2 - Core app
-// ==============================
+// Your Home in Space — V1.3.2
+
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 
-// --- Estado global ---
 const state = {
   version: '1.3.2',
-  view: 'top',                 // 'top' | 'front' | 'side'
-  floor: 1,                    // piso activo
-  ppm: 30,                     // pixels per meter (auto)
-  margin: 30,                  // px
+  view: 'top',
+  floor: 1,
+  ppm: 30,
+  margin: 30,
   env: 'luna_sur',
   crewN: 2,
-  shell: { radius: 5, length: 12, floors: 3, gap: 2.5 }, // metros
-  items: [],                   // módulos
-  selId: null,                 // selección
-  images: {},                  // (opcional) para sprites por módulo
+  shell: { radius: 5, length: 12, floors: 3, gap: 2.5 }, // m
+  items: [],
+  selId: null,
+  images: {},
   bgImg: { top: null, front: null, side: null },
   history: [], redo: []
 };
 
-// --- Definición de módulos ---
 const MODULES = [
   {key:'sleep',   name:'Sueño (crew quarters)', nhv:4,  mass:100, color:'#4aa3ff'},
   {key:'hygiene', name:'Higiene + UWMS',        nhv:6,  mass:180, color:'#6ed4ff'},
@@ -36,17 +33,9 @@ const MODULES = [
   {key:'corr',    name:'Pasillo',               nhv:0,  mass:10,  color:'#9aa8ff', sys:true}
 ];
 
-// Capacidad nominal por defecto (N tripulantes por módulo)
+// capacidad nominal (N tripulantes por módulo)
 const CAP_DEFAULTS = {
-  sleep: 1,
-  hygiene: 3,
-  galley: 4,
-  ops: 4,
-  med: 6,
-  ex: 3,
-  store: 4,      // 1 módulo cada 4 tripulantes
-  eclss: 4,
-  airlock: 4
+  sleep: 1, hygiene: 3, galley: 4, ops: 4, med: 6, ex: 3, store: 4, eclss: 4, airlock: 4
 };
 const CAP_INFO = {
   sleep:{base:'min. recomendado NASA',infl:'NHV, Riesgo bajo, Energía baja',rule:'1 módulo por tripulante (ajust.)'},
@@ -56,24 +45,23 @@ const CAP_INFO = {
   med:{base:'min. recomendado NASA',infl:'Riesgo, NHV',rule:'1 módulo cada ~6 trip.'},
   ex:{base:'min. recomendado NASA',infl:'Energía, NHV, Riesgo',rule:'1 módulo cada ~3 trip.'},
   store:{base:'min. recomendado NASA',infl:'Masa, NHV',rule:'Depende de duración; base 1 c/4 trip.'},
-  eclss:{base:'min. recomendado NASA',infl:'O2, H2O, CO2, Energía',rule:'1 módulo c/ ~4 trip. (según recuperación)'},
+  eclss:{base:'min. recomendado NASA',infl:'O2, H2O, CO2, Energía',rule:'1 módulo c/ ~4 trip.'},
   airlock:{base:'min. recomendado NASA',infl:'Riesgo, Energía',rule:'1 módulo cada ~4 trip.'}
 };
 
-// --- Helpers ---
+const $ = (q)=>document.querySelector(q);
+const $$ = (q)=>document.querySelectorAll(q);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rad=(d)=>d*Math.PI/180;
 const deg=(r)=>r*180/Math.PI;
-const m2p = (m)=> m*state.ppm;
-const p2m = (p)=> p/state.ppm;
-const hex2rgba=(hex,a)=>{const h=hex.replace('#','');const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return `rgba(${r},${g},${b},${a})`;};
+const m2p=(m)=>m*state.ppm;
+const p2m=(p)=>p/state.ppm;
+const hex2rgba=(h,a)=>{const x=h.replace('#','');return`rgba(${parseInt(x.slice(0,2),16)},${parseInt(x.slice(2,4),16)},${parseInt(x.slice(4,6),16)},${a})`;};
 const shortName=(n)=>n.split('(')[0].trim();
+
 let nextId=1;
 
-// --- UI & eventos básicos ---
-const $ = (q)=>document.querySelector(q);
-const $$ = (q)=>document.querySelectorAll(q);
-
+// ---------- UI ----------
 function mountModuleList(){
   const list = $('#modList'); list.innerHTML='';
   MODULES.forEach(m=>{
@@ -139,7 +127,7 @@ $('#btnSim').onclick=()=>alert('Simulación de vida (placeholder)');
 $$('.views .tab').forEach(b=>b.onclick=()=>{ $$('.views .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.view=b.dataset.v; computePPM(); render(); });
 $$('.floors .tab').forEach(b=>b.onclick=()=>{ $$('.floors .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.floor=parseInt(b.dataset.f,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); });
 
-// --- Undo/Redo ---
+// ---------- Undo/Redo ----------
 function pushHistory(){
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   state.redo.length=0;
@@ -151,7 +139,7 @@ function redo(){ const s=state.redo.pop(); if(!s) return;
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
 
-// --- Backgrounds (50% alpha) ---
+// ---------- Assets (backgrounds al 50%) ----------
 const ASSET_ROOT='assets';
 const asset=(p)=>`${ASSET_ROOT}/${p}`;
 function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.src=src; }); }
@@ -162,7 +150,7 @@ async function loadBackgrounds(){
 }
 loadBackgrounds();
 
-// --- Escala automática por vista ---
+// ---------- Escala automática ----------
 function computePPM(){
   const M=state.margin;
   let w_m,h_m;
@@ -175,15 +163,15 @@ function computePPM(){
   state.ppm=Math.max(10, Math.floor(Math.min(sx,sy)));
 }
 
-// --- Centro válido por vista ---
+// ---------- Centros ----------
 function viewCenter(){
   const R=state.shell.radius, L=state.shell.length;
   if(state.view==='top')   return {x:R, y:L/2};
   if(state.view==='front') return {x:R, y:R};
-  return {x:R, y:R + L/2}; // side
+  return {x:R, y:R + L/2};
 }
 
-// --- Inserción de módulos ---
+// ---------- Inserción módulos ----------
 function insertModule(key,center=true){
   const def=MODULES.find(m=>m.key===key); if(!def) return;
   const sz=Math.max(2, Math.sqrt(def.nhv)||2);
@@ -193,15 +181,13 @@ function insertModule(key,center=true){
   if(center){ const c=viewCenter(); it.x=c.x-it.w/2; it.y=c.y-it.h/2; }
   state.items.push(it); state.selId=it.id; pushHistory(); render();
 }
-
-// Escalera obligatoria si hay +1 piso
 function ensureStairs(){
   if(state.shell.floors<=1) return;
   const has = state.items.some(i=>i.key==='stairs');
   if(!has){ const c=viewCenter(); state.items.push({id:nextId++, key:'stairs', name:'Escalera', floor:1, x:c.x-1, y:c.y-1, w:2, h:2, rot:0, locked:false, stairs:true}); }
 }
 
-// --- Dibujo ---
+// ---------- Dibujo ----------
 function drawBackground(){
   const k=state.view, img=state.bgImg[k]; if(!img) return;
   ctx.save(); ctx.globalAlpha=.5;
@@ -281,7 +267,7 @@ function render(){
   drawScaleBar(); updateScore();
 }
 
-// --- Selección/Edición ---
+// ---------- Selección/edición ----------
 function currentSel(){ return state.items.find(i=>i.id===state.selId); }
 function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
 function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
@@ -295,10 +281,9 @@ function hitHandle(p, box){
   return null;
 }
 
-let drag=null; // {mode:'move'|'rot'|'res', idx?, offx,offy,start, startBox}
+let drag=null;
 cv.addEventListener('mousedown', (e)=>{
   const pos=getMouseM(e);
-  // pick
   const it = pickItem(pos); state.selId = it? it.id : null; updateProp();
   const sel=currentSel(); if(!sel){ render(); return; }
   const box=itemBoxPx(sel); const hit=hitHandle(pos, box);
@@ -328,7 +313,6 @@ cv.addEventListener('mousemove',(e)=>{
 });
 window.addEventListener('mouseup',()=>{ if(drag){ drag=null; pushHistory(); updateScore(); } });
 
-// Atajos: flechas (0.1 m / 1 m con Shift), R rota 15°
 window.addEventListener('keydown',(e)=>{
   const it=currentSel(); if(!it) return;
   const step = e.shiftKey? 1.0 : 0.1;
@@ -347,7 +331,7 @@ function pickItem(p){
   return null;
 }
 
-// --- Colisiones y límites (AABB simple + límites de cascarón por vista) ---
+// ---------- Colisiones ----------
 function collides(A){
   const a={x:A.x,y:A.y,w:A.w,h:A.h,f:A.floor};
   for(const B of state.items){ if(B.id===A.id||B.floor!==A.floor) continue;
@@ -361,7 +345,7 @@ function collides(A){
   return false;
 }
 
-// --- Propiedades panel ---
+// ---------- Propiedades ----------
 function updateProp(){
   const box=$('#propBox'); const it=currentSel();
   if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
@@ -390,11 +374,8 @@ function updateProp(){
   });
 }
 
-// --- Score simplificado + reglas de negocio V1.3.2 ---
+// ---------- Score simplificado ----------
 function updateScore(){
-  // Reglas clave:
-  // - Si floors>1 y no hay escalera => fallo
-  // - Penalización simple por colisiones
   const needsStairs = state.shell.floors>1;
   const hasStairs = state.items.some(i=>i.key==='stairs');
   let base=0.5, vol=0.5, mass=1.0, mult=0.5, fail='—';
@@ -402,7 +383,6 @@ function updateScore(){
   let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
   base = Math.max(0, base - Math.min(1, collisions*0.05));
   const final = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
-  // UI
   $('#scColl').textContent=collisions.toFixed(2);
   $('#scBase').textContent=base.toFixed(2);
   $('#scVol').textContent=vol.toFixed(2);
@@ -413,7 +393,7 @@ function updateScore(){
   $('#scoreFinal').textContent=final.toFixed(1);
 }
 
-// --- Guía de capacidades ---
+// ---------- Guía de capacidades ----------
 $('#btnGuide').onclick=()=>{ mountCapTable(); $('#guideModal').classList.add('show'); };
 $('#closeGuide').onclick=()=>$('#guideModal').classList.remove('show');
 $$('.tap').forEach(b=>b.onclick=()=>{
@@ -458,7 +438,15 @@ $('#btnApplyCaps').onclick=()=>{
   $('#guideModal').classList.remove('show'); render();
 };
 
-// --- Boot ---
+// ---------- Boot ----------
+function drawScaleBar(){ const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
+  ctx.save(); ctx.strokeStyle='#ddd'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+pxLen,y0); ctx.stroke();
+  for(let i=0;i<=base_m;i++){ const x=x0+m2p(i), h=(i%5===0)?10:6; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0-h); ctx.stroke(); }
+  ctx.fillStyle='#ddd'; ctx.font='12px system-ui';
+  ctx.fillText(`${base_m} m`, x0+pxLen+6, y0+4);
+  ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
+  ctx.restore();
+}
 function boot(){ ensureStairs(); computePPM(); render(); pushHistory(); }
 boot();
-
