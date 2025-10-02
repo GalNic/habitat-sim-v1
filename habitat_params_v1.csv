@@ -1,0 +1,46 @@
+type,key,value,Modulo,NHV_min_m3,NHV_ref_m3,Masa_est_kg,Consumo_O2_kg_dia,Consumo_H2O_kg_dia,Consumo_Food_kg_dia,Energia_req_kW,ECLSS_soporta_crew
+GLOBAL,environment_default,moon_south_pole,,,,,,,,,
+GLOBAL,crew_count,2,,,,,,,,,
+GLOBAL,cabin_height_m,2.5,,,,,,,,,
+GLOBAL,adjacency_threshold_m,3.0,,,,,,,,,
+GLOBAL,ref_days_normalization,30,,,,,,,,,
+GLOBAL,mass_ref_kg,8000,,,,,,,,,
+GLOBAL,moon_south_pole.daylight_hours,12,,,,,,,,,
+GLOBAL,moon_south_pole.night_hours,12,,,,,,,,,
+GLOBAL,moon_south_pole.solar_kW_mean_daylight,6,,,,,,,,,
+GLOBAL,moon_south_pole.energy_storage_kWh,50,,,,,,,,,
+GLOBAL,mars.daylight_hours,12,,,,,,,,,
+GLOBAL,mars.night_hours,12,,,,,,,,,
+GLOBAL,mars.solar_kW_mean_daylight,4,,,,,,,,,
+GLOBAL,mars.energy_storage_kWh,60,,,,,,,,,
+GLOBAL,exoplanet.daylight_hours,10,,,,,,,,,
+GLOBAL,exoplanet.night_hours,14,,,,,,,,,
+GLOBAL,exoplanet.solar_kW_mean_daylight,5,,,,,,,,,
+GLOBAL,exoplanet.energy_storage_kWh,70,,,,,,,,,
+GLOBAL,store_O2_kg,50,,,,,,,,,
+GLOBAL,store_H2O_kg,200,,,,,,,,,
+GLOBAL,store_Food_kg,100,,,,,,,,,
+GLOBAL,per_crew_O2_kg_day,0.84,,,,,,,,,
+GLOBAL,per_crew_H2O_kg_day,3.0,,,,,,,,,
+GLOBAL,per_crew_Food_kg_day,0.62,,,,,,,,,
+MODULE,,,Sueño (crew quarters),2.0,4.0,500,0.0,0.0,0.0,0.2,
+MODULE,,,Higiene + UWMS,3.0,6.0,800,0.0,0.0,0.0,0.6,
+MODULE,,,Galley + Mesa común,4.0,8.0,1200,0.0,0.0,0.0,0.8,
+MODULE,,,Trabajo / Comando crítico,3.0,6.0,1000,0.0,0.0,0.0,0.8,
+MODULE,,,Médico,2.0,5.0,700,0.0,0.0,0.0,0.5,
+MODULE,,,Ejercicio,6.0,10.0,1500,0.0,0.0,0.0,1.2,
+MODULE,,,Estiba (Storage),5.0,12.0,2000,0.0,0.0,0.0,0.2,
+MODULE,,,ECLSS (Life Support),8.0,15.0,2500,-3.36,-11.0,-2.48,2.0,4
+MODULE,,,Airlock,4.0,7.0,1800,0.0,0.0,0.0,0.5,
+GLOBAL,habitat_shape,ellipse
+GLOBAL,habitat_a_m,10
+GLOBAL,habitat_b_m,7
+GLOBAL,habitat_height_m,3
+GLOBAL,corridor_count,2
+GLOBAL,corridor1_y_m,5
+GLOBAL,corridor2_y_m,9
+GLOBAL,forbid_overlap,1
+GLOBAL,module_min_edge_m,1.2
+GLOBAL,module_max_edge_m,6
+GLOBAL,moon_south_pole.solar_kW_mean_daylight,8
+GLOBAL,moon_south_pole.energy_storage_kWh,120
