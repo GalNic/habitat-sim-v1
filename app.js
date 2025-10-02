@@ -1,640 +1,308 @@
-/* V1.3.1 — NASA APP - House
-   - Cascarón cilíndrico + tapas
-   - Pisos y separación
-   - Inserción/edición de módulos con color
-   - Guardar/Cargar JSON (schema V1.3.1)
-   - Simular Vida (modal) + Detalle
-   - Guía/Tabla/Fuentes con capacidades nominales editables (sin “números inventados”)
-*/
+// ==============================
+// V1.3.2 - Core app
+// ==============================
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
 
-const pxPerM = 30; // escala de dibujo
+// --- Estado global ---
 const state = {
-  version: "1.3.1",
-  env: "moon",
-  crew: 2,
-  dirty: false,
-  view: "xy",
-  activeFloor: 1,
-  shell: { R: 5, L: 12, floors: 3, gap: 2.5 },
-  modules: [], // items {id,type,floor,x,y,w,h,rot,color,specific:{}, capacityNominal?:number}
-  history: { undo: [], redo: [] },
-  refs: ["Burke-ASCEND-2022","Choate-IEEE-2023","ADD-ESDMD-2024","MMPACT-AIAA"],
-  // capacidades por tipo (editable por el usuario desde la Guía):
-  capacities: {} // e.g. { sleep: 1, hygiene: 3, galley: 4, ... } => “n tripulantes por módulo”
+  version: '1.3.2',
+  view: 'top',                 // 'top' | 'front' | 'side'
+  floor: 1,                    // piso activo
+  ppm: 30,                     // pixels per meter (auto)
+  margin: 30,                  // px
+  env: 'luna_sur',
+  crewN: 2,
+  shell: { radius: 5, length: 12, floors: 3, gap: 2.5 }, // metros
+  items: [],                   // módulos
+  selId: null,                 // selección
+  images: {},                  // (opcional) para sprites por módulo
+  bgImg: { top: null, front: null, side: null },
+  history: [], redo: []
 };
 
-// Catálogo de módulos (sin números duros de NASA; descripción e impacto + regla orientativa)
-const ModuleCatalog = [
-  {
-    key: "sleep",
-    name: "Sueño (crew quarters)",
-    nhv_ref_m3: 4,
-    color: "#3b82f6",
-    desc: "Descanso y privacidad. Impacta confort/NHV y rendimiento cognitivo.",
-    influence: ["NHV","Riesgo bajo","Energía baja"],
-    ruleText: "Orientativo: 1 módulo por tripulante (ajustable por capacidad nominal).",
-    specific: [
-      { id:"berths", label:"Nº literas", type:"number", step:1, value:1, min:1 },
-      { id:"privacy", label:"Privacidad", type:"select", options:["baja","media","alta"], value:"media" },
-      { id:"acoustic", label:"Aislamiento acústico", type:"select", options:["bajo","medio","alto"], value:"medio" }
-    ]
-  },
-  {
-    key: "hygiene",
-    name: "Higiene + UWMS",
-    nhv_ref_m3: 6,
-    color: "#06b6d4",
-    desc: "Higiene personal y manejo de desechos (UWMS). Impacto directo en salud/riesgos biológicos y agua.",
-    influence: ["H2O","Riesgo","NHV"],
-    ruleText: "Orientativo: 1 módulo cada ~3 tripulantes (ajustable).",
-    specific: [
-      { id:"uwms_cap", label:"Capacidad UWMS (personas/día)", type:"number", step:1, value:3, min:1 },
-      { id:"water_flow", label:"Caudal agua (L/d)", type:"number", step:1, value:30, min:0 }
-    ]
-  },
-  {
-    key: "galley",
-    name: "Galley + Mesa común",
-    nhv_ref_m3: 8,
-    color: "#10b981",
-    desc: "Preparación y consumo de alimentos; cohesión social.",
-    influence: ["Energía","NHV"],
-    ruleText: "Orientativo: 1 módulo cada ~4 tripulantes (ajustable).",
-    specific: [
-      { id:"seats", label:"Plazas a mesa", type:"number", step:1, value:4, min:1 }
-    ]
-  },
-  {
-    key: "work",
-    name: "Trabajo / Comando crítico",
-    nhv_ref_m3: 6,
-    color: "#8b5cf6",
-    desc: "Puestos de trabajo/teleoperación y monitoreo de sistemas.",
-    influence: ["Energía","Riesgo"],
-    ruleText: "Orientativo: 1 módulo cada ~4 tripulantes.",
-    specific: [
-      { id:"stations", label:"Puestos", type:"number", step:1, value:2, min:1 },
-      { id:"redund", label:"Redundancia consolas", type:"select", options:["baja","media","alta"], value:"media" }
-    ]
-  },
-  {
-    key: "medical",
-    name: "Médico",
-    nhv_ref_m3: 5,
-    color: "#ef4444",
-    desc: "Atención básica, telemedicina, privacidad.",
-    influence: ["Riesgo","NHV"],
-    ruleText: "Orientativo: 1 módulo cada ~6 tripulantes.",
-    specific: [
-      { id:"equip_crit", label:"Equip. crítico", type:"checkbox", value:true }
-    ]
-  },
-  {
-    key: "exercise",
-    name: "Ejercicio",
-    nhv_ref_m3: 10,
-    color: "#f59e0b",
-    desc: "Mitiga pérdida muscular/ósea. Vibraciones a controlar.",
-    influence: ["Energía","NHV","Riesgo"],
-    ruleText: "Orientativo: 1 módulo cada ~3 tripulantes.",
-    specific: [
-      { id:"type", label:"Tipo", type:"select", options:["resistivo","cardio","mixto"], value:"resistivo" },
-      { id:"time", label:"Tiempo diario (min)", type:"number", step:5, value:60, min:0 }
-    ]
-  },
-  {
-    key: "storage",
-    name: "Estiba (Storage)",
-    nhv_ref_m3: 12,
-    color: "#64748b",
-    desc: "Alimentos, repuestos, bagaje. Influye en masa/volumen.",
-    influence: ["Masa","NHV"],
-    ruleText: "Orientativo: depende de duración; base 1 c/4 tripulantes (ajustable).",
-    specific: [
-      { id:"food_pct", label:"% Alimentos", type:"number", step:1, value:60, min:0 },
-      { id:"spares_pct", label:"% Repuestos", type:"number", step:1, value:40, min:0 }
-    ]
-  },
-  {
-    key: "eclss",
-    name: "ECLSS (Life Support)",
-    nhv_ref_m3: 15,
-    color: "#22c55e",
-    desc: "Soporte vital (O2/H2O/CO2) regenerativo o abierto.",
-    influence: ["O2","H2O","CO2","Energía"],
-    ruleText: "Orientativo: 1 módulo cada ~4 tripulantes (según recuperación).",
-    specific: [
-      { id:"o2_rec", label:"Recuperación O₂ (%)", type:"number", step:1, value:70, min:0, max:100 },
-      { id:"h2o_rec", label:"Recuperación H₂O (%)", type:"number", step:1, value:80, min:0, max:100 },
-      { id:"mode", label:"Modo", type:"select", options:["abierto","parcial","cerrado"], value:"parcial" }
-    ]
-  },
-  {
-    key: "airlock",
-    name: "Airlock",
-    nhv_ref_m3: 7,
-    color: "#0ea5e9",
-    desc: "Soporte EVA: ciclo presión, acceso exterior.",
-    influence: ["Riesgo","Energía"],
-    ruleText: "Orientativo: 1 módulo cada ~4 tripulantes.",
-    specific: [
-      { id:"cycle_min", label:"Tiempo ciclo (min)", type:"number", step:1, value:20, min:1 },
-      { id:"suits", label:"Capacidad trajes", type:"select", options:["1","2"], value:"2" }
-    ]
-  }
+// --- Definición de módulos ---
+const MODULES = [
+  {key:'sleep',   name:'Sueño (crew quarters)', nhv:4,  mass:100, color:'#4aa3ff'},
+  {key:'hygiene', name:'Higiene + UWMS',        nhv:6,  mass:180, color:'#6ed4ff'},
+  {key:'galley',  name:'Galley + Mesa común',   nhv:8,  mass:160, color:'#62e6b9'},
+  {key:'ops',     name:'Trabajo / Comando crítico', nhv:6, mass:150, color:'#8cf0a7'},
+  {key:'med',     name:'Médico',                nhv:5,  mass:140, color:'#ffd166'},
+  {key:'ex',      name:'Ejercicio',             nhv:10, mass:200, color:'#f6a4ff'},
+  {key:'store',   name:'Estiba (Storage)',      nhv:12, mass:120, color:'#c3dafe'},
+  {key:'eclss',   name:'ECLSS (Life Support)',  nhv:15, mass:300, color:'#fff1a8'},
+  {key:'airlock', name:'Airlock',               nhv:7,  mass:220, color:'#ffa3a3'},
+  {key:'stairs',  name:'Escalera',              nhv:0,  mass:50,  color:'#a3ffd1', sys:true},
+  {key:'corr',    name:'Pasillo',               nhv:0,  mass:10,  color:'#9aa8ff', sys:true}
 ];
 
-// ————— Utils —————
-const $ = sel => document.querySelector(sel);
-const $$ = sel => Array.from(document.querySelectorAll(sel));
-function uid(){ return 'm' + Math.random().toString(36).slice(2,9); }
-function markDirty(){ state.dirty = true; }
-function pushHistory(){ state.history.undo.push(JSON.stringify(state)); state.history.redo.length=0; }
-function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
+// Capacidad nominal por defecto (N tripulantes por módulo)
+const CAP_DEFAULTS = {
+  sleep: 1,
+  hygiene: 3,
+  galley: 4,
+  ops: 4,
+  med: 6,
+  ex: 3,
+  store: 4,      // 1 módulo cada 4 tripulantes
+  eclss: 4,
+  airlock: 4
+};
+const CAP_INFO = {
+  sleep:{base:'min. recomendado NASA',infl:'NHV, Riesgo bajo, Energía baja',rule:'1 módulo por tripulante (ajust.)'},
+  hygiene:{base:'min. recomendado NASA',infl:'H2O, Riesgo, NHV',rule:'1 módulo cada ~3 trip.'},
+  galley:{base:'min. recomendado NASA',infl:'Energía, NHV',rule:'1 módulo cada ~4 trip.'},
+  ops:{base:'min. recomendado NASA',infl:'Energía, Riesgo',rule:'1 módulo cada ~4 trip.'},
+  med:{base:'min. recomendado NASA',infl:'Riesgo, NHV',rule:'1 módulo cada ~6 trip.'},
+  ex:{base:'min. recomendado NASA',infl:'Energía, NHV, Riesgo',rule:'1 módulo cada ~3 trip.'},
+  store:{base:'min. recomendado NASA',infl:'Masa, NHV',rule:'Depende de duración; base 1 c/4 trip.'},
+  eclss:{base:'min. recomendado NASA',infl:'O2, H2O, CO2, Energía',rule:'1 módulo c/ ~4 trip. (según recuperación)'},
+  airlock:{base:'min. recomendado NASA',infl:'Riesgo, Energía',rule:'1 módulo cada ~4 trip.'}
+};
 
-// ————— Inicialización —————
-window.addEventListener('load', () => {
-  // UI binds
-  $('#envSelect').addEventListener('change', e=>{ state.env=e.target.value; draw(); });
-  $('#crewInput').addEventListener('input', e=>{ state.crew = Math.max(1, +e.target.value||1); updateScore(); });
-  $('#undoBtn').addEventListener('click', undo);
-  $('#redoBtn').addEventListener('click', redo);
-  $('#resetLayoutBtn').addEventListener('click', onResetLayout);
-  $('#simulateBtn').addEventListener('click', openSim);
-  $('#saveBtn').addEventListener('click', doSave);
-  $('#loadBtn').addEventListener('click', ()=>$('#fileOpen').click());
-  $('#fileOpen').addEventListener('change', doLoad);
-  $('#applyShellBtn').addEventListener('click', applyShell);
-  $('#detailBtn').addEventListener('click', openDetail);
-  $('#helpBtn').addEventListener('click', ()=>openModal('helpModal'));
+// --- Helpers ---
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rad=(d)=>d*Math.PI/180;
+const deg=(r)=>r*180/Math.PI;
+const m2p = (m)=> m*state.ppm;
+const p2m = (p)=> p/state.ppm;
+const hex2rgba=(hex,a)=>{const h=hex.replace('#','');const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return `rgba(${r},${g},${b},${a})`;};
+const shortName=(n)=>n.split('(')[0].trim();
+let nextId=1;
 
-  $$('.tabBtn').forEach(b=>b.addEventListener('click', ()=>{
-    $$('.tabBtn').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); state.view=b.dataset.view; draw();
-  }));
-  $$('.floorBtn').forEach(b=>b.addEventListener('click', ()=>{
-    state.activeFloor = +b.dataset.floor; draw();
-  }));
-  $$('.closeModal').forEach(b=>b.addEventListener('click', ()=>closeModal(b.dataset.close)));
+// --- UI & eventos básicos ---
+const $ = (q)=>document.querySelector(q);
+const $$ = (q)=>document.querySelectorAll(q);
 
-  // pestañas del modal de ayuda
-  $$('.tab2Btn').forEach(b=>b.addEventListener('click', ()=>{
-    $$('.tab2Btn').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    $$('.tab2Pane').forEach(p=>p.hidden=true);
-    $('#tab-'+b.dataset.tab).hidden=false;
-  }));
-  $('#resetCapsBtn').addEventListener('click', ()=>{ state.capacities={}; renderHelpTable(); });
-  $('#applyRecsBtn').addEventListener('click', applyRecommendations);
-
-  // Guardar confirmación al cerrar
-  window.addEventListener('beforeunload', (e)=>{
-    if(state.dirty){ e.preventDefault(); e.returnValue=''; }
+function mountModuleList(){
+  const list = $('#modList'); list.innerHTML='';
+  MODULES.forEach(m=>{
+    const row=document.createElement('div');
+    row.className='item';
+    row.dataset.key=m.key;
+    row.innerHTML=`<span>${m.name} <small style="opacity:.7">(NHV_ref ${m.nhv} m²)</small></span><span class="badge">P?</span>`;
+    row.onclick=()=>insertModule(m.key,true);
+    list.appendChild(row);
   });
+}
+mountModuleList();
 
-  renderModulesList();
-  renderHelpTable();
-  ensureFloorButtons();
-  draw();
-  updateScore();
+function syncShellInputs(){
+  $('#inpR').value=state.shell.radius;
+  $('#inpL').value=state.shell.length;
+  $('#inpFloors').value=state.shell.floors;
+  $('#inpGap').value=state.shell.gap;
+}
+syncShellInputs();
+
+['inpR','inpL','inpFloors','inpGap'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    state.shell.radius = parseFloat($('#inpR').value||5);
+    state.shell.length = parseFloat($('#inpL').value||12);
+    state.shell.floors = parseInt($('#inpFloors').value||3,10);
+    state.shell.gap    = parseFloat($('#inpGap').value||2.5);
+    ensureStairs(); computePPM(); render();
+  });
 });
+$('#btnShellApply').onclick=()=>{ computePPM(); render(); };
 
-// ————— Render de lista de módulos —————
-function renderModulesList(){
-  const wrap = $('#modulesList'); wrap.innerHTML='';
-  ModuleCatalog.forEach(m=>{
-    const btn = document.createElement('button');
-    btn.textContent = `${m.name} (NHV_ref ${m.nhv_ref_m3} m³)`;
-    btn.addEventListener('click', ()=>addModuleFromCatalog(m.key));
-    wrap.appendChild(btn);
-  });
-}
+$('#btnReset').onclick=()=>{
+  if(!confirm('¿Seguro que deseas volver a comenzar?')) return;
+  state.items=[]; state.selId=null; ensureStairs(); pushHistory(); render();
+};
+$('#btnUndo').onclick=undo; $('#btnRedo').onclick=redo;
 
-function ensureFloorButtons(){
-  const N = state.shell.floors;
-  const holder = document.querySelector('.floorsel');
-  holder.querySelectorAll('.floorBtn').forEach(b=>b.remove());
-  for(let i=1;i<=N;i++){
-    const b=document.createElement('button'); b.className='floorBtn'; b.dataset.floor=i; b.textContent=String(i);
-    b.addEventListener('click', ()=>{ state.activeFloor=i; draw(); });
-    holder.appendChild(b);
-  }
-}
-
-// ————— Agregar módulo —————
-function addModuleFromCatalog(key){
-  const def = ModuleCatalog.find(x=>x.key===key);
-  const id = uid();
-  const mod = {
-    id,
-    type: key,
-    floor: state.activeFloor,
-    x: 1 + Math.random()*2, // posición inicial simple
-    y: 1 + Math.random()*2,
-    w: 2.0, h: 2.0, rot: 0,
-    color: def.color,
-    specific: (def.specific||[]).reduce((a,p)=>{ a[p.id]=p.value; return a; },{})
+$('#btnSave').onclick=()=>{
+  const data={version:state.version, env:state.env, crewN:state.crewN, shell:state.shell, items:state.items};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='habitat-v132.json'; a.click();
+};
+$('#btnLoad').onclick=()=>$('#loadFile').click();
+$('#loadFile').onchange=(e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const fr=new FileReader();
+  fr.onload=()=>{
+    try{
+      const o=JSON.parse(fr.result);
+      state.env=o.env||'luna_sur'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
+      $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
+      ensureStairs(); computePPM(); render();
+    }catch{ alert('JSON inválido'); }
   };
-  pushHistory();
-  state.modules.push(mod);
-  state.dirty = true;
-  draw();
-  selectModule(id);
+  fr.readAsText(f);
+};
+
+$('#crewN').onchange=(e)=>{ state.crewN=parseInt(e.target.value||2,10); $('#capN').textContent=state.crewN; };
+$('#envSel').onchange=(e)=>{ state.env=e.target.value; loadBackgrounds().then(render); };
+$('#btnSim').onclick=()=>alert('Simulación de vida (placeholder)');
+
+$$('.views .tab').forEach(b=>b.onclick=()=>{ $$('.views .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.view=b.dataset.v; computePPM(); render(); });
+$$('.floors .tab').forEach(b=>b.onclick=()=>{ $$('.floors .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.floor=parseInt(b.dataset.f,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); });
+
+// --- Undo/Redo ---
+function pushHistory(){
+  state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
+  state.redo.length=0;
+}
+function undo(){ const s=state.history.pop(); if(!s) return;
+  state.redo.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
+  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
+function redo(){ const s=state.redo.pop(); if(!s) return;
+  state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
+  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
+
+// --- Backgrounds (50% alpha) ---
+const ASSET_ROOT='assets';
+const asset=(p)=>`${ASSET_ROOT}/${p}`;
+function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.src=src; }); }
+async function loadBackgrounds(){
+  try{ state.bgImg.top   = await loadImg(asset(`backgrounds/${state.env}/top.jpg`)); }catch{}
+  try{ state.bgImg.front = await loadImg(asset(`backgrounds/${state.env}/front.jpg`)); }catch{}
+  try{ state.bgImg.side  = await loadImg(asset(`backgrounds/${state.env}/side.jpg`)); }catch{}
+}
+loadBackgrounds();
+
+// --- Escala automática por vista ---
+function computePPM(){
+  const M=state.margin;
+  let w_m,h_m;
+  const R=state.shell.radius, L=state.shell.length;
+  if(state.view==='top'){ w_m=R*2; h_m=L; }
+  else if(state.view==='front'){ w_m=R*2; h_m=R*2; }
+  else { w_m=R*2; h_m=L+R*2; }
+  const sx=(cv.width - M*2)/w_m;
+  const sy=(cv.height- M*2)/h_m;
+  state.ppm=Math.max(10, Math.floor(Math.min(sx,sy)));
 }
 
-// ————— Dibujo —————
-function draw(){
-  const canvas = $('#viewCanvas');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  drawBackground(ctx);
-  drawShell(ctx);
-  drawModules(ctx);
+// --- Centro válido por vista ---
+function viewCenter(){
+  const R=state.shell.radius, L=state.shell.length;
+  if(state.view==='top')   return {x:R, y:L/2};
+  if(state.view==='front') return {x:R, y:R};
+  return {x:R, y:R + L/2}; // side
 }
 
-function drawBackground(ctx){
-  // Fondo por entorno con fallback
-  const img = new Image();
-  img.onload = ()=>{ ctx.drawImage(img, 0,0, ctx.canvas.width, ctx.canvas.height); drawShell(ctx); drawModules(ctx); };
-  img.onerror = ()=>{ ctx.fillStyle = (state.env==='moon')?'#111827':'#1b263b'; ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height); };
-  img.src = state.env==='moon' ? 'assets/bg_moon.jpg' : 'assets/bg_mars.jpg';
+// --- Inserción de módulos ---
+function insertModule(key,center=true){
+  const def=MODULES.find(m=>m.key===key); if(!def) return;
+  const sz=Math.max(2, Math.sqrt(def.nhv)||2);
+  const it={id:nextId++, key, name:def.name, floor:state.floor, x:0, y:0, w:sz, h:sz, rot:0, locked:false};
+  if(key==='corr'){ it.w=1.2; it.h=4; }
+  if(key==='stairs'){ it.w=2; it.h=2; it.stairs=true; }
+  if(center){ const c=viewCenter(); it.x=c.x-it.w/2; it.y=c.y-it.h/2; }
+  state.items.push(it); state.selId=it.id; pushHistory(); render();
 }
 
-function toPX(m){ return m*pxPerM; }
+// Escalera obligatoria si hay +1 piso
+function ensureStairs(){
+  if(state.shell.floors<=1) return;
+  const has = state.items.some(i=>i.key==='stairs');
+  if(!has){ const c=viewCenter(); state.items.push({id:nextId++, key:'stairs', name:'Escalera', floor:1, x:c.x-1, y:c.y-1, w:2, h:2, rot:0, locked:false, stairs:true}); }
+}
 
-function drawShell(ctx){
-  const {R,L,floors,gap} = state.shell;
-  const cx = 80, cy = 70; // márgenes
+// --- Dibujo ---
+function drawBackground(){
+  const k=state.view, img=state.bgImg[k]; if(!img) return;
+  ctx.save(); ctx.globalAlpha=.5;
+  const rC=cv.width/cv.height, rI=img.width/img.height;
+  let w=cv.width,h=cv.height,x=0,y=0;
+  if(rI>rC){ h=cv.height; w=h*rI; x=(cv.width-w)/2; } else { w=cv.width; h=w/rI; y=(cv.height-h)/2; }
+  ctx.drawImage(img,x,y,w,h); ctx.restore();
+}
+function drawShell(){
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.lineWidth=2; ctx.strokeStyle='#94a3b8';
-
-  if(state.view==='xy'){
-    // círculo principal (proyección superior)
-    ctx.beginPath();
-    ctx.arc(toPX(R), toPX(R), toPX(R), 0, Math.PI*2);
-    ctx.stroke();
-    // reja/sugerencia
-    ctx.setLineDash([4,4]);
-    ctx.beginPath();
-    ctx.moveTo(0,toPX(R)); ctx.lineTo(toPX(2*R),toPX(R));
-    ctx.moveTo(toPX(R),0); ctx.lineTo(toPX(R),toPX(2*R));
-    ctx.stroke(); ctx.setLineDash([]);
-  } else {
-    // frontal/lateral: cilindro + tapas
-    const len = L, rad = R;
-    const w = toPX(2*rad), h = toPX(len + 2*rad);
-    // cuerpo
-    ctx.strokeRect(0, toPX(rad), w, toPX(len));
-    // tapas (semicírculos)
-    ctx.beginPath();
-    ctx.arc(toPX(rad), toPX(rad), toPX(rad), Math.PI, 0);
-    ctx.moveTo(0, toPX(rad+len));
-    ctx.arc(toPX(rad), toPX(rad+len), toPX(rad), 0, Math.PI);
-    ctx.stroke();
-
-    // pisos
-    for(let i=1;i<=floors;i++){
-      const y = toPX(rad + (i-1)*gap + 0.05); // línea fina
-      ctx.setLineDash(i===state.activeFloor?[2,2]:[6,4]);
-      ctx.strokeStyle = i===state.activeFloor ? '#0ea5e9' : '#cbd5e1';
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-    }
-    ctx.setLineDash([]); ctx.strokeStyle='#94a3b8';
+  ctx.strokeStyle='rgba(80,120,200,0.9)'; ctx.lineWidth=2;
+  const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
+  if(state.view==='top'){
+    const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
+    ctx.strokeRect(left,top,w,h);
+  }else if(state.view==='front'){
+    const w=R*2, h=R*2, left=cx-R, top=(cv.height-h)/2;
+    ctx.strokeRect(left,top,w,h);
+    const gap=m2p(state.shell.gap); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
+    for(let i=1;i<state.shell.floors;i++){ const y=top+i*gap; if(y<top+h-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(left+w,y); ctx.stroke(); } }
+    ctx.setLineDash([]);
+  }else{
+    const h=L+R*2, top=(cv.height-h)/2, left=cx-R, right=cx+R;
+    ctx.beginPath(); ctx.arc(cx, top+R, R, Math.PI, 0,false); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(left,top+R); ctx.lineTo(left,top+R+L); ctx.moveTo(right,top+R); ctx.lineTo(right,top+R+L); ctx.stroke();
+    const gap=m2p(state.shell.gap); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
+    for(let i=1;i<state.shell.floors;i++){ const y=top+R+i*gap; if(y<top+R+L-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke(); } }
+    ctx.setLineDash([]);
   }
   ctx.restore();
 }
-
-function drawModules(ctx){
-  const floor = state.activeFloor;
-  for(const m of state.modules){
-    if(m.floor!==floor) continue;
-    // proyección simple: XY dibuja rectángulo; XZ/YZ cambia eje
-    const col = m.color || '#38bdf8';
-    ctx.save();
-    // offset de dibujo base (igual que shell translate)
-    const ox=80, oy=70;
-    ctx.translate(ox,oy);
-
-    let x=toPX(m.x), y=toPX(m.y), w=toPX(m.w), h=toPX(m.h);
-    if(state.view!=='xy'){ // frontal/lateral comparten layout plano
-      // usar x como horizontal y y como “altura” sobre el piso
-      x=toPX(m.x); y=toPX(m.y); w=toPX(m.w); h=toPX(m.h);
-    }
-    ctx.translate(x,y);
-    ctx.rotate(m.rot*Math.PI/180);
-    ctx.fillStyle = col+"aa";
-    ctx.strokeStyle = col;
-    ctx.lineWidth=2;
-    ctx.fillRect(0,0,w,h);
-    ctx.strokeRect(0,0,w,h);
-
-    ctx.fillStyle="#0f172a";
-    ctx.font="12px system-ui";
-    ctx.fillText(ModuleCatalog.find(d=>d.key===m.type).name.split(" ")[0], 4, 14);
-    ctx.restore();
-  }
+function drawScaleBar(){
+  const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
+  ctx.save();
+  ctx.strokeStyle='#ddd'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+pxLen,y0); ctx.stroke();
+  for(let i=0;i<=base_m;i++){ const x=x0+m2p(i), h=(i%5===0)?10:6; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0-h); ctx.stroke(); }
+  ctx.fillStyle='#ddd'; ctx.font='12px system-ui';
+  ctx.fillText(`${base_m} m`, x0+pxLen+6, y0+4);
+  ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
+  ctx.restore();
+}
+function getColor(key){ const m=MODULES.find(x=>x.key===key); return m?m.color:'#4aa3ff'; }
+function drawModule(it){
+  const x=m2p(it.x), y=m2p(it.y), w=m2p(it.w), h=m2p(it.h);
+  ctx.save();
+  const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
+  const col = collides(it) ? 'rgba(239,68,68,0.85)' : 'rgba(74,163,255,0.85)';
+  ctx.fillStyle = hex2rgba(getColor(it.key), .85);
+  ctx.strokeStyle = col; ctx.lineWidth=2;
+  ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle='#0b0f17'; ctx.font='12px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
+  // badge
+  ctx.fillStyle='rgba(20,40,77,.85)'; ctx.strokeStyle='rgba(41,74,122,.9)'; ctx.lineWidth=1; const bw=34,bh=16;
+  ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
+  ctx.fillStyle='#9fc5ff'; ctx.fillText(`P${it.floor}`, x+w-bw+8,y+16);
+  ctx.restore();
+  if(state.selId===it.id) drawHandles(x,y,w,h);
+}
+function drawHandles(x,y,w,h){
+  const hs=7;
+  const pts=[[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]];
+  ctx.save();
+  ctx.fillStyle='#fff';
+  pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#0b0f17'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
+  // centro mover
+  ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+  // rotar
+  ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaf'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+  ctx.restore();
+}
+function render(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  computePPM(); drawBackground(); drawShell();
+  const arr=state.items.filter(i=>i.floor===state.floor);
+  for(const it of arr) drawModule(it);
+  drawScaleBar(); updateScore();
 }
 
-// ————— Selección y propiedades —————
-let selectedId = null;
-$('#viewCanvas').addEventListener('click', (e)=>{
-  const floor = state.activeFloor;
-  const rect = e.target.getBoundingClientRect();
-  const mx = (e.clientX-rect.left - 80)/pxPerM;
-  const my = (e.clientY-rect.top - 70)/pxPerM;
-
-  // hit-test simple (AABB sin rotación – suficiente V1.3.1)
-  for(const m of [...state.modules].reverse()){
-    if(m.floor!==floor) continue;
-    if(mx>=m.x && mx<=m.x+m.w && my>=m.y && my<=m.y+m.h){
-      selectModule(m.id); return;
-    }
-  }
-  // click vacío
-  selectModule(null);
-});
-
-function selectModule(id){
-  selectedId = id;
-  const form = $('#propsForm');
-  const none = $('#noSelection');
-  if(!id){ form.hidden=true; none.hidden=false; return; }
-
-  const m = state.modules.find(x=>x.id===id);
-  none.hidden=true; form.hidden=false;
-
-  $('#p_id').value = m.id;
-  $('#p_type').value = ModuleCatalog.find(x=>x.key===m.type).name;
-  $('#p_floor').value = m.floor;
-  $('#p_x').value = m.x;  $('#p_y').value = m.y;
-  $('#p_w').value = m.w;  $('#p_h').value = m.h;
-  $('#p_rot').value = m.rot;
-  $('#p_color').value = m.color || '#38bdf8';
-
-  // específicos
-  const def = ModuleCatalog.find(x=>x.key===m.type);
-  const box = $('#specificParams'); box.innerHTML='';
-  (def.specific||[]).forEach(p=>{
-    const row=document.createElement('div'); row.className='row';
-    const lab=document.createElement('label'); lab.textContent=p.label;
-    let inp;
-    if(p.type==='select'){
-      inp=document.createElement('select');
-      p.options.forEach(op=>{
-        const o=document.createElement('option'); o.value=op; o.textContent=op;
-        inp.appendChild(o);
-      });
-      inp.value=m.specific[p.id];
-    }else if(p.type==='checkbox'){
-      inp=document.createElement('input'); inp.type='checkbox'; inp.checked=!!m.specific[p.id];
-    }else{
-      inp=document.createElement('input'); inp.type='number';
-      if(p.step) inp.step=p.step; if(p.min!=null) inp.min=p.min; if(p.max!=null) inp.max=p.max;
-      inp.value=m.specific[p.id];
-    }
-    inp.dataset.pid=p.id;
-    row.appendChild(lab); row.appendChild(inp); box.appendChild(row);
-  });
-
-  // descripción + regla
-  $('#moduleDesc').innerHTML = `<strong>Para qué sirve:</strong> ${def.desc}<br>
-    <em>Influencia:</em> ${def.influence.join(", ")}<br>
-    <em>Regla orientativa por tripulación:</em> ${def.ruleText}`;
+// --- Selección/Edición ---
+function currentSel(){ return state.items.find(i=>i.id===state.selId); }
+function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
+function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
+function getMouseM(ev){ const r=cv.getBoundingClientRect(); const x=(ev.clientX-r.left)*(cv.width/r.width); const y=(ev.clientY-r.top)*(cv.height/r.height); return {x:p2m(x), y:p2m(y)}; }
+function hitHandle(p, box){
+  const hs=7, rad=10; const pts=[[box.x,box.y],[box.x+box.w/2,box.y],[box.x+box.w,box.y],[box.x+box.w,box.y+box.h/2],[box.x+box.w,box.y+box.h],[box.x+box.w/2,box.y+box.h],[box.x,box.y+box.h],[box.x,box.y+box.h/2]];
+  const X=m2p(p.x), Y=m2p(p.y);
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y-18))<=rad) return 'rot';
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y+box.h/2))<=rad) return 'move';
+  for(let i=0;i<pts.length;i++) if(Math.abs(X-pts[i][0])<=hs && Math.abs(Y-pts[i][1])<=hs) return i;
+  return null;
 }
 
-$('#applyModuleBtn').addEventListener('click', ()=>{
-  if(!selectedId) return;
-  const m = state.modules.find(x=>x.id===selectedId);
-  pushHistory();
-  m.floor = Math.max(1, +$('#p_floor').value||1);
-  m.x = +$('#p_x').value||m.x;
-  m.y = +$('#p_y').value||m.y;
-  m.w = Math.max(0.5, +$('#p_w').value||m.w);
-  m.h = Math.max(0.5, +$('#p_h').value||m.h);
-  m.rot = +$('#p_rot').value||0;
-  m.color = $('#p_color').value;
-
-  // específicos
-  $$('#specificParams [data-pid]').forEach(inp=>{
-    const pid = inp.dataset.pid;
-    if(inp.type==='checkbox') m.specific[pid]=inp.checked;
-    else if(inp.tagName==='SELECT') m.specific[pid]=inp.value;
-    else m.specific[pid]=+inp.value;
-  });
-
-  markDirty(); draw(); updateScore();
-});
-
-$('#resetModuleBtn').addEventListener('click', ()=>{
-  if(!selectedId) return;
-  const m = state.modules.find(x=>x.id===selectedId);
-  const def = ModuleCatalog.find(x=>x.key===m.type);
-  pushHistory();
-  m.w=2; m.h=2; m.rot=0; m.color=def.color;
-  m.specific = (def.specific||[]).reduce((a,p)=>{ a[p.id]=p.value; return a; },{});
-  markDirty(); draw(); selectModule(selectedId);
-});
-
-// ————— Cascarón —————
-function applyShell(){
-  const R = +$('#shellR').value||state.shell.R;
-  const L = +$('#shellL').value||state.shell.L;
-  const floors = Math.max(1, +$('#floorsN').value||state.shell.floors);
-  const gap = +$('#floorGap').value||state.shell.gap;
-  pushHistory();
-  state.shell={R,L,floors,gap};
-  ensureFloorButtons();
-  draw();
-  markDirty();
-}
-
-// ————— Undo/Redo —————
-function undo(){
-  const {undo, redo} = state.history;
-  if(!undo.length) return;
-  redo.push(JSON.stringify(state));
-  const snap = JSON.parse(undo.pop());
-  Object.keys(state).forEach(k=>delete state[k]);
-  Object.assign(state, snap);
-  draw(); updateScore(); selectModule(null);
-}
-function redo(){
-  const {undo, redo} = state.history;
-  if(!redo.length) return;
-  undo.push(JSON.stringify(state));
-  const snap = JSON.parse(redo.pop());
-  Object.keys(state).forEach(k=>delete state[k]);
-  Object.assign(state, snap);
-  draw(); updateScore(); selectModule(null);
-}
-
-// ————— Reset layout —————
-function onResetLayout(){
-  if(!confirm("¿Seguro que querés volver a comenzar? Se perderán los cambios no guardados.")) return;
-  pushHistory();
-  state.modules=[]; state.dirty=true; draw(); updateScore(); selectModule(null);
-}
-
-// ————— Guardar/Cargar —————
-function doSave(){
-  const data = {
-    version: state.version,
-    env: state.env,
-    crew: state.crew,
-    shell: state.shell,
-    modules: state.modules,
-    refs: state.refs,
-    capacities: state.capacities
-  };
-  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `habitat_project_v${state.version}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-  state.dirty=false;
-}
-
-async function doLoad(e){
-  const f=e.target.files[0]; if(!f) return;
-  const txt = await f.text();
-  const data = JSON.parse(txt);
-  pushHistory();
-  Object.assign(state, {
-    env: data.env||'moon',
-    crew: data.crew||2,
-    shell: data.shell||state.shell,
-    modules: data.modules||[],
-    capacities: data.capacities||{},
-    refs: data.refs||state.refs
-  });
-  ensureFloorButtons(); draw(); updateScore(); selectModule(null);
-  state.dirty=false;
-}
-
-// ————— Simular y detalle —————
-function updateScore(){
-  // V1.3.1: cálculos sencillos/placeholder (sin inventar cifras NASA)
-  const coll = 0; // AABB simplificado — no implementado en detalle aquí
-  const nhvEff = "—";
-  const mass = state.modules.length * 1000; // placeholder
-  const days = mass>0 ? 29 : 0; // placeholder
-  const fail = mass>0 ? "O₂ agotado" : "—";
-  const sbase=0, svol=0.5, smass=1.0, smult=0.5;
-  const sfinal = 0.0;
-
-  $('#m_coll').textContent = coll.toFixed(2);
-  $('#m_adj').textContent = "1.00";
-  $('#m_nhv').textContent = nhvEff;
-  $('#m_mass').textContent = mass.toFixed(0);
-  $('#m_days').textContent = days;
-  $('#m_fail').textContent = fail;
-  $('#m_sbase').textContent = sbase.toFixed(2);
-  $('#m_svol').textContent = svol.toFixed(2);
-  $('#m_smass').textContent = smass.toFixed(2);
-  $('#m_smult').textContent = smult.toFixed(2);
-  $('#m_sfinal').textContent = sfinal.toFixed(1);
-}
-
-function openSim(){
-  const el = $('#simContent');
-  el.innerHTML = `
-    <p><strong>Entorno:</strong> ${state.env==='moon'?'Luna Sur':'Marte'} — <strong>Tripulación:</strong> ${state.crew}</p>
-    <p><strong>Módulos:</strong> ${state.modules.length}</p>
-    <div class="card">
-      <div><strong>Vida estimada (días):</strong> ${$('#m_days').textContent}</div>
-      <div><strong>Motivo de fallo:</strong> ${$('#m_fail').textContent}</div>
-      <div><strong>Score final:</strong> ${$('#m_sfinal').textContent}</div>
-    </div>
-    <p>En V1.4.x se agregará el modo <em>manual tipo SIMS</em>.</p>
-  `;
-  openModal('simModal');
-}
-
-function openDetail(){
-  const box = $('#detailContent');
-  box.innerHTML = `
-    <p>Resumen de factores y multiplicadores (placeholder V1.3.1):</p>
-    <ul>
-      <li>Volumen/NHV, Masa, Adyacencias, Rutas de 1 m, ECLSS, Confort/Privacidad.</li>
-      <li>La bibliografía base se documenta en la pestaña “Fuentes”.</li>
-    </ul>
-  `;
-  openModal('detailModal');
-}
-
-function openModal(id){ $('#'+id).hidden=false; }
-function closeModal(id){ $('#'+id).hidden=true; }
-
-// ————— Guía/Tabla/Fuentes —————
-function renderHelpTable(){
-  const wrap = $('#helpTableWrap');
-  const N = state.crew;
-  // capacidades actuales (editable en tabla)
-  const caps = state.capacities;
-
-  const rows = ModuleCatalog.map(def=>{
-    const cap = caps[def.key] ?? "";
-    const demandText = "min. recomendado NASA (ver Fuentes)";
-    // recomendación: si hay capacidad definida (n tripulantes/módulo), usamos ceil(N/cap)
-    const rec = (cap && +cap>0) ? Math.ceil(N / (+cap)) : "—";
-    return `
-      <tr>
-        <td>${def.name}</td>
-        <td>${demandText}</td>
-        <td><input data-cap="${def.key}" type="number" min="1" step="1" value="${cap}"></td>
-        <td class="mono">${rec}</td>
-        <td>${def.influence.join(", ")}</td>
-        <td><em>${def.ruleText}</em></td>
-      </tr>
-    `;
-  }).join("");
-
-  wrap.innerHTML = `
-    <table class="card" style="width:100%;border-collapse:collapse">
-      <thead>
-        <tr>
-          <th style="text-align:left">Módulo (app)</th>
-          <th style="text-align:left">Parámetro base</th>
-          <th style="text-align:left">Capacidad nominal<br><small>(N tripulantes por módulo)</small></th>
-          <th style="text-align:left">Recomendación<br><small>para N=${N}</small></th>
-          <th style="text-align:left">Influencia</th>
-          <th style="text-align:left">Regla orientativa</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-
-  // binds
-  wrap.querySelectorAll('[data-cap]').forEach(inp=>{
-    inp.addEventListener('input', ()=>{
-      const k = inp.dataset.cap;
-      const v = inp.value ? Math.max(1, +inp.value) : "";
-      if(v==="") delete state.capacities[k]; else state.capacities[k]=v;
-      renderHelpTable();
-    });
-  });
-}
-
-function applyRecommendations(){
-  // Inserta/ajusta cantidad por tipo según recomendación (solo suma; no borra)
-  const needAdd = [];
-  const N = state.crew;
-  for(const def of ModuleCatalog){
-    const cap = state.capacities[def.key];
-    if(!cap || +cap<=0) continue;
-    const rec = Math.ceil(N / (+cap));
-    const have = state.modules.filter(m=>m.type===def.key).length;
-    const toAdd = Math.max(0, rec - have);
-    if(toAdd>0) needAdd.push({key:def.key, count:toAdd});
-  }
-  if(!needAdd.length){ alert("No hay módulos para agregar con las capacidades actuales."); return; }
-  pushHistory();
-  needAdd.forEach(it=>{
-    for(let i=0;i<it.count;i++) addModuleFromCatalog(it.key);
-  });
-  markDirty(); draw(); updateScore();
-}
+let drag=null; // {mode:'move'|'rot'|'res', idx?, offx,offy,start, startBox}
+cv.addEventListener('mousedown', (e)=>{
+  const pos=getMouseM(e);
+  // pick
+  const it = pickItem(pos); state.selId = it? it.id : null; updateProp();
+  const sel=currentSel(); if(!sel){ render(); return; }
+  const box=itemBoxPx(sel); const hit=hitHandle(pos, box);
+  if(hit==='move'){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
+  else if(hit==='rot'){ drag={mode:'rot', start:pos}; }
+  else if(typeof hit==='number'){ drag={mode:'res', idx:hit, start:pos, startBox:{x:sel.x,y:sel.y,w:sel.w,h:sel.h}}; }
+  else if(pointInBoxPx(pos, box
