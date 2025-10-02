@@ -2,214 +2,137 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Your Home in Space — Demo V1.3.1</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="icon" href="favicon.ico">
-  <link rel="stylesheet" href="styles.css?v=1.3.1" />
+  <title>Your Home in Space — Demo V1.3.2</title>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-
-<header class="topbar">
-  <div class="left">
-    <strong>Your Home in Space — Demo V1.3.1</strong>
-  </div>
-  <div class="right">
-    <label>Entorno:
-      <select id="envSelect">
-        <option value="moon">Luna Sur</option>
-        <option value="mars">Marte</option>
-      </select>
-    </label>
-    <label>Tripulación (N):
-      <input id="crewInput" type="number" min="1" value="2"/>
-    </label>
-    <button id="undoBtn">Deshacer</button>
-    <button id="redoBtn">Rehacer</button>
-    <button id="resetLayoutBtn">Reiniciar Layout</button>
-    <button id="simulateBtn">Simular Vida</button>
-    <button id="saveBtn">Guardar (JSON)</button>
-    <button id="loadBtn">Cargar</button>
-    <input id="fileOpen" type="file" accept=".json" hidden>
-  </div>
+<header>
+  <div class="title">Your Home in Space — <span class="pill">V1.3.2</span></div>
+  <div class="sep"></div>
+  <label>Entorno:
+    <select id="envSel">
+      <option value="luna_sur">Luna Sur</option>
+      <option value="orbital">Orbital/TH</option>
+    </select>
+  </label>
+  <label>Tripulación (N):
+    <input id="crewN" type="number" min="1" max="12" value="2" style="width:72px">
+  </label>
+  <button id="btnGuide">Guía (módulos)</button>
+  <button id="btnUndo">Deshacer</button>
+  <button id="btnRedo">Rehacer</button>
+  <button id="btnReset">Reiniciar Layout</button>
+  <button id="btnSim" class="warn">Simular Vida</button>
+  <button id="btnSave">Guardar (JSON)</button>
+  <input id="loadFile" type="file" accept=".json" hidden>
+  <button id="btnLoad">Cargar (JSON)</button>
 </header>
 
-<main class="main">
-  <!-- Panel izquierdo -->
-  <aside class="leftpanel">
-    <div class="modulesHeader">
-      <h3>Módulos</h3>
-      <button id="helpBtn" class="iconBtn" title="Guía de dimensionamiento">?</button>
-    </div>
-    <div id="modulesList" class="modulesList"><!-- se llena por JS --></div>
-
-    <hr>
+<div class="wrap">
+  <!-- Izquierda -->
+  <aside class="panel modules">
+    <h3>Módulos</h3>
+    <div class="hint">Click para insertar (se centra en vista/piso activo)</div>
+    <div id="modList"></div>
+    <hr />
     <h3>Cascarón</h3>
-    <div class="shellForm">
-      <div class="row">
-        <label class="mono">Geometría:</label>
-        <span>Cilindro + tapas hemisféricas</span>
-      </div>
-      <div class="row">
-        <label>Radio (m)</label><input id="shellR" type="number" step="0.1" value="5">
-      </div>
-      <div class="row">
-        <label>Longitud cil. L (m)</label><input id="shellL" type="number" step="0.1" value="12">
-      </div>
-      <div class="row">
-        <label>Pisos (N)</label><input id="floorsN" type="number" min="1" value="3">
-      </div>
-      <div class="row">
-        <label>Separación entre pisos (m)</label><input id="floorGap" type="number" step="0.1" value="2.5">
-      </div>
-      <button id="applyShellBtn">Aplicar</button>
-    </div>
+    <div class="hintSmall">Geometría: <b>Cilindro + tapas hemisféricas</b></div>
+    <div class="kv"><div>Radio (m)</div><input id="inpR" type="number" value="5" step="0.1"></div>
+    <div class="kv"><div>Longitud cil. (m)</div><input id="inpL" type="number" value="12" step="0.1"></div>
+    <div class="kv"><div>Pisos (N)</div><input id="inpFloors" type="number" value="3" min="1" max="8"></div>
+    <div class="kv"><div>Separación entre pisos (m)</div><input id="inpGap" type="number" value="2.5" step="0.1"></div>
+    <button id="btnShellApply" class="btn">Aplicar</button>
   </aside>
 
-  <!-- Centro: vistas -->
-  <section class="centerpanel">
-    <div class="tabs">
-      <button class="tabBtn active" data-view="xy">Vista Superior — <strong>Plano XY</strong></button>
-      <button class="tabBtn" data-view="xz">Vista Frontal — <strong>Plano XZ</strong></button>
-      <button class="tabBtn" data-view="yz">Vista Lateral — <strong>Plano YZ</strong></button>
-      <span class="floorsel">Piso:
-        <button class="floorBtn" data-floor="1">1</button>
-        <button class="floorBtn" data-floor="2">2</button>
-        <button class="floorBtn" data-floor="3">3</button>
-      </span>
+  <!-- Centro -->
+  <main class="canvas-wrap panel">
+    <div class="rowbar">
+      <div class="tabs views">
+        <button data-v="top"   class="tab active">Vista Superior — <b>Plano XY</b></button>
+        <button data-v="front" class="tab">Vista Frontal — <b>Plano XZ</b></button>
+        <button data-v="side"  class="tab">Vista Lateral — <b>Plano YZ</b></button>
+      </div>
+      <div class="tabs floors">
+        <span class="lbl">Piso:</span>
+        <button data-f="1" class="tab active">1</button>
+        <button data-f="2" class="tab">2</button>
+        <button data-f="3" class="tab">3</button>
+      </div>
     </div>
-    <div id="canvasWrap">
-      <canvas id="viewCanvas" width="1100" height="560"></canvas>
-    </div>
-    <div class="scalehint">Escala aprox: 1 m ≈ 30 px. En Frontal/Lateral se muestra un <em>piso por vez</em>.</div>
-  </section>
+    <canvas id="cv" width="1280" height="640"></canvas>
+    <div id="floorBadge" class="pill badge">Piso activo: 1</div>
+    <div class="kbd">Atajos: Flechas= mover 0.1 m (Shift=1 m) · R=rotar 15°</div>
+  </main>
 
-  <!-- Panel derecho -->
-  <aside class="rightpanel">
-    <div id="propsCard" class="card">
-      <h3>Propiedades</h3>
-      <div id="noSelection">Seleccioná un módulo…</div>
-      <form id="propsForm" hidden>
-        <div class="row"><label>ID</label><input id="p_id" type="text" readonly></div>
-        <div class="row"><label>Tipo</label><input id="p_type" type="text" readonly></div>
-        <div class="row"><label>Piso</label><input id="p_floor" type="number" min="1"></div>
-        <div class="row"><label>X (m)</label><input id="p_x" type="number" step="0.1"></div>
-        <div class="row"><label>Y / Alt (m)</label><input id="p_y" type="number" step="0.1"></div>
-        <div class="row"><label>Ancho (m)</label><input id="p_w" type="number" step="0.1"></div>
-        <div class="row"><label>Largo (m)</label><input id="p_h" type="number" step="0.1"></div>
-        <div class="row"><label>Rot (°)</label><input id="p_rot" type="number" step="1"></div>
-        <div class="row"><label>Color</label><input id="p_color" type="color"></div>
-
-        <details class="advanced">
-          <summary>Parámetros específicos</summary>
-          <div id="specificParams"><!-- genera JS según tipo --></div>
-        </details>
-
-        <div class="row">
-          <button type="button" id="resetModuleBtn">Restablecer módulo</button>
-          <button type="button" id="applyModuleBtn" class="primary">Aplicar</button>
-        </div>
-
-        <div id="moduleDesc" class="descBox"></div>
-      </form>
-    </div>
-
-    <div id="scoreCard" class="card">
-      <h3>Score & Estado</h3>
+  <!-- Derecha -->
+  <aside class="panel props">
+    <h3>Propiedades</h3>
+    <div id="propBox"><div class="hint">Seleccioná un módulo…</div></div>
+    <div class="score">
+      <div><b>Score & Estado</b></div>
       <div id="scoreBox">
-        <div>Colisiones: <span id="m_coll">0</span></div>
-        <div>Adyacencias: <span id="m_adj">1.00</span></div>
-        <div>NHV eficiencia: <span id="m_nhv">—</span></div>
-        <div>Masa total (kg): <span id="m_mass">—</span></div>
-        <hr>
-        <div>Vida estimada (días): <span id="m_days">—</span></div>
-        <div>Motivo de fallo: <span id="m_fail">—</span></div>
-        <div>Score base (0-1): <span id="m_sbase">—</span></div>
-        <div>Opt volumen (0-1): <span id="m_svol">—</span></div>
-        <div>Opt masa (0-1): <span id="m_smass">—</span></div>
-        <div>Mult. funcional (0-1): <span id="m_smult">—</span></div>
-        <hr>
-        <div><strong>Score final (0-100):</strong> <span id="m_sfinal">0.0</span></div>
+        <div>Colisiones: <span id="scColl">0.00</span></div>
+        <div>Adyacencias: <span id="scAdj">1.00</span></div>
+        <div>NHV eficiencia: —</div>
+        <div>Masa total (kg): <span id="scMass">0</span></div>
+        <div class="mt">Vida estimada (días): <span id="scDays">0</span></div>
+        <div>Motivo de fallo: <span id="scFail">—</span></div>
+        <div class="mt">
+          <div>Score base (0–1): <span id="scBase">0.00</span></div>
+          <div>Opt volumen (0–1): <span id="scVol">0.50</span></div>
+          <div>Opt masa (0–1): <span id="scMas">1.00</span></div>
+          <div>Mult. funcional (0–1): <span id="scMul">0.50</span></div>
+        </div>
+        <div class="mt"><b>Score final (0–100):</b> <span id="scoreFinal">0.0</span></div>
       </div>
-      <button id="detailBtn">Ver detalle de cálculo</button>
+      <button id="btnScoreDetail" class="btn secondary mt">Ver detalle de cálculo</button>
     </div>
   </aside>
-</main>
-
-<footer class="footer">
-  <span>V1.3.1 • EVA = Actividad Extravehicular • NHV = Net Habitable Volume • Parámetros desde JSON</span>
-</footer>
-
-<!-- MODAL: Simulación -->
-<div id="simModal" class="modal" hidden>
-  <div class="modalBody">
-    <div class="modalHeader">
-      <h3>Resultados — Simular Vida</h3>
-      <button class="closeModal" data-close="simModal">✕</button>
-    </div>
-    <div class="modalContent" id="simContent">
-      <!-- se llena con JS -->
-    </div>
-  </div>
 </div>
 
-<!-- MODAL: Detalle de cálculo -->
-<div id="detailModal" class="modal" hidden>
-  <div class="modalBody">
-    <div class="modalHeader">
-      <h3>Detalle del cálculo</h3>
-      <button class="closeModal" data-close="detailModal">✕</button>
+<!-- Modal Guía -->
+<div id="guideModal" class="modal" aria-hidden="true">
+  <div class="card">
+    <div class="cardhead">
+      <h2>Guía de dimensionamiento y supervivencia</h2>
+      <button id="closeGuide" class="btn secondary">Cerrar ✕</button>
     </div>
-    <div class="modalContent" id="detailContent"></div>
-  </div>
-</div>
-
-<!-- MODAL: Guía/Tabla/Fuentes -->
-<div id="helpModal" class="modal" hidden>
-  <div class="modalBody large">
-    <div class="modalHeader">
-      <h3>Guía de dimensionamiento y supervivencia</h3>
-      <button class="closeModal" data-close="helpModal">✕</button>
+    <div class="taps">
+      <button data-t="a" class="tap">A) Guía</button>
+      <button data-t="b" class="tap active">B) Tabla de referencia</button>
+      <button data-t="c" class="tap">C) Fuentes</button>
     </div>
-
-    <div class="tabs2">
-      <button class="tab2Btn active" data-tab="guide">A) Guía</button>
-      <button class="tab2Btn" data-tab="table">B) Tabla de referencia</button>
-      <button class="tab2Btn" data-tab="refs">C) Fuentes</button>
+    <div id="tabA" style="display:none">
+      <p>Capacidades nominales precargadas por módulo (tripulantes por módulo). Con el valor <b>N</b> de tripulación se calcula la recomendación mínima. Podés editar y aplicar.</p>
     </div>
-
-    <div id="tab-guide" class="tab2Pane">
-      <p><strong>Método:</strong> La cantidad recomendada de módulos se calcula con:
-        <code>Módulos = ceil( Demanda(N) / Capacidad_nominal )</code>.
-        La demanda se basa en funciones y volúmenes/áreas mínimas recomendadas en literatura NASA.
-        Las capacidades nominales son <em>editables</em> en esta app.
-      </p>
-      <ul>
-        <li>La tabla no fija números “duros”; usa parámetros trazables y editables.</li>
-        <li>La regla orientativa por tripulación se muestra también en las propiedades de cada módulo.</li>
-      </ul>
-      <p>Placeholder del “modo manual estilo SIMS” quedará para versiones 1.4.x.</p>
-    </div>
-
-    <div id="tab-table" class="tab2Pane" hidden>
-      <div id="helpTableWrap"><!-- JS inyecta tabla con capacidades editables y recomendación --></div>
-      <div class="row right">
-        <button id="applyRecsBtn">Aplicar recomendaciones</button>
-        <button id="resetCapsBtn">Restablecer capacidades</button>
+    <div id="tabB">
+      <table id="capTable">
+        <thead>
+          <tr>
+            <th>Módulo (app)</th>
+            <th>Parámetro base</th>
+            <th>Capacidad nominal<br><small>(N tripulantes por módulo)</small></th>
+            <th>Recomendación<br><small>para N=<span id="capN">2</span></small></th>
+            <th>Influencia</th>
+            <th>Regla orientativa</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="rowbtn">
+        <button id="btnApplyCaps" class="btn ok">Aplicar recomendaciones</button>
+        <button id="btnResetCaps" class="btn secondary">Restablecer capacidades</button>
       </div>
     </div>
-
-    <div id="tab-refs" class="tab2Pane" hidden>
-      <ol class="refs">
-        <li><strong>Burke et al., 2022 (ASCEND)</strong> — “Internal Layout Assessment of a Lunar Surface Habitat”. Funciones mínimas por área/volumen; distribución en tres niveles; caminos de traslación.</li>
-        <li><strong>Choate et al., 2023 (IEEE)</strong> — “Moon to Mars Transit Habitat – Reference Design”. Contexto de masa/volumen/ECLSS para tránsito largo.</li>
-        <li><strong>NASA ESDMD-001 Rev-A, 2024</strong> — “Moon to Mars Architecture Definition Document”. Sub-arquitecturas y trazabilidad (Habitation, Logistics, Power, Human Systems).</li>
-        <li><strong>MMPACT / ICON / SEArch+ (AIAA)</strong> — Infraestructura/estiba/logística superficie; construcción e ISRU.</li>
-      </ol>
-      <p>Los valores específicos se gestionan como parámetros internos y pueden actualizarse con nueva bibliografía.</p>
+    <div id="tabC" style="display:none">
+      <ul>
+        <li>Valores orientativos extraídos de documentación NASA para layouts/funciones de hábitat (SH/TH/PCM). En próximos commits se enlazan tablas específicas por referencia.</li>
+      </ul>
     </div>
   </div>
 </div>
 
-<script src="app.js?v=1.3.1"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
