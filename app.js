@@ -305,4 +305,160 @@ cv.addEventListener('mousedown', (e)=>{
   if(hit==='move'){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
   else if(hit==='rot'){ drag={mode:'rot', start:pos}; }
   else if(typeof hit==='number'){ drag={mode:'res', idx:hit, start:pos, startBox:{x:sel.x,y:sel.y,w:sel.w,h:sel.h}}; }
-  else if(pointInBoxPx(pos, box
+  else if(pointInBoxPx(pos, box)){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
+});
+cv.addEventListener('mousemove',(e)=>{
+  if(!drag) return; const pos=getMouseM(e); const it=currentSel(); if(!it) return;
+  if(drag.mode==='move'){ it.x=pos.x-drag.offx; it.y=pos.y-drag.offy; }
+  else if(drag.mode==='rot'){ const c={x:it.x+it.w/2,y:it.y+it.h/2}; it.rot = clamp(deg(Math.atan2(pos.y-c.y,pos.x-c.x)), -180,180); }
+  else if(drag.mode==='res'){
+    const i=drag.idx, sb=drag.startBox, dx=pos.x-drag.start.x, dy=pos.y-drag.start.y; let x=sb.x,y=sb.y,w=sb.w,h=sb.h;
+    if(i===0){ x=sb.x+dx; y=sb.y+dy; w=sb.w-dx; h=sb.h-dy; }
+    if(i===1){ y=sb.y+dy; h=sb.h-dy; }
+    if(i===2){ y=sb.y+dy; w=sb.w+dx; h=sb.h-dy; }
+    if(i===3){ w=sb.w+dx; }
+    if(i===4){ w=sb.w+dx; h=sb.h+dy; }
+    if(i===5){ h=sb.h+dy; }
+    if(i===6){ x=sb.x+dx; w=sb.w-dx; h=sb.h+dy; }
+    if(i===7){ x=sb.x+dx; }
+    const min= it.key==='corr' ? {w:.8,h:1.0} : {w:1.0,h:1.0};
+    it.x=x; it.y=y; it.w=Math.max(min.w,w); it.h=Math.max(min.h,h);
+  }
+  render();
+});
+window.addEventListener('mouseup',()=>{ if(drag){ drag=null; pushHistory(); updateScore(); } });
+
+// Atajos: flechas (0.1 m / 1 m con Shift), R rota 15°
+window.addEventListener('keydown',(e)=>{
+  const it=currentSel(); if(!it) return;
+  const step = e.shiftKey? 1.0 : 0.1;
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','r','R'].includes(e.key)) e.preventDefault();
+  if(e.key==='ArrowLeft')  it.x -= step;
+  if(e.key==='ArrowRight') it.x += step;
+  if(e.key==='ArrowUp')    it.y -= step;
+  if(e.key==='ArrowDown')  it.y += step;
+  if(e.key==='r' || e.key==='R') it.rot = (it.rot+15)%360;
+  render(); pushHistory();
+});
+
+function pickItem(p){
+  const arr=state.items.filter(i=>i.floor===state.floor);
+  for(let i=arr.length-1;i>=0;i--){ const it=arr[i]; if(pointInBoxPx(p, itemBoxPx(it))) return it; }
+  return null;
+}
+
+// --- Colisiones y límites (AABB simple + límites de cascarón por vista) ---
+function collides(A){
+  const a={x:A.x,y:A.y,w:A.w,h:A.h,f:A.floor};
+  for(const B of state.items){ if(B.id===A.id||B.floor!==A.floor) continue;
+    const b={x:B.x,y:B.y,w:B.w,h:B.h};
+    if(a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y ) return true;
+  }
+  const R=state.shell.radius, L=state.shell.length;
+  if(state.view==='top'){ if(a.x<0||a.y<0||a.x+a.w>R*2||a.y+a.h>L) return true; }
+  else if(state.view==='front'){ if(a.x<0||a.y<0||a.x+a.w>R*2||a.y+a.h>R*2) return true; }
+  else { if(a.x<0||a.y<0||a.x+a.w>R*2||a.y+a.h>(L+R*2)) return true; }
+  return false;
+}
+
+// --- Propiedades panel ---
+function updateProp(){
+  const box=$('#propBox'); const it=currentSel();
+  if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
+  box.innerHTML=`
+    <div class="kv"><div>Nombre</div><input class="ro" value="${it.name}" readonly></div>
+    <div class="kv"><div>Piso</div><input id="pFloor" type="number" min="1" max="${state.shell.floors}" value="${it.floor}"></div>
+    <div class="kv"><div>X (m)</div><input id="pX" type="number" step="0.1" value="${it.x.toFixed(2)}"></div>
+    <div class="kv"><div>Y (m)</div><input id="pY" type="number" step="0.1" value="${it.y.toFixed(2)}"></div>
+    <div class="kv"><div>Ancho (m)</div><input id="pW" type="number" step="0.1" value="${it.w.toFixed(2)}"></div>
+    <div class="kv"><div>Largo (m)</div><input id="pH" type="number" step="0.1" value="${it.h.toFixed(2)}"></div>
+    <div class="kv"><div>Rotación (°)</div><input id="pR" type="number" step="1" value="${it.rot.toFixed(0)}"></div>
+    <div class="kv"><div>Bloqueado</div><input id="pLock" type="checkbox" ${it.locked?'checked':''}></div>
+  `;
+  ['pFloor','pX','pY','pW','pH','pR','pLock'].forEach(id=>{
+    document.getElementById(id).onchange=(e)=>{
+      const it=currentSel(); if(!it) return;
+      if(id==='pFloor') it.floor=clamp(parseInt(e.target.value,10),1,state.shell.floors);
+      else if(id==='pLock') it.locked=e.target.checked;
+      else if(id==='pR') it.rot=parseFloat(e.target.value||0);
+      else if(id==='pX') it.x=parseFloat(e.target.value||it.x);
+      else if(id==='pY') it.y=parseFloat(e.target.value||it.y);
+      else if(id==='pW') it.w=Math.max(0.3,parseFloat(e.target.value||it.w));
+      else if(id==='pH') it.h=Math.max(0.3,parseFloat(e.target.value||it.h));
+      render(); pushHistory(); updateScore();
+    };
+  });
+}
+
+// --- Score simplificado + reglas de negocio V1.3.2 ---
+function updateScore(){
+  // Reglas clave:
+  // - Si floors>1 y no hay escalera => fallo
+  // - Penalización simple por colisiones
+  const needsStairs = state.shell.floors>1;
+  const hasStairs = state.items.some(i=>i.key==='stairs');
+  let base=0.5, vol=0.5, mass=1.0, mult=0.5, fail='—';
+  if(needsStairs && !hasStairs){ base=0; vol=0; mult=0; fail='sin conectividad vertical (falta escalera)'; }
+  let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
+  base = Math.max(0, base - Math.min(1, collisions*0.05));
+  const final = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
+  // UI
+  $('#scColl').textContent=collisions.toFixed(2);
+  $('#scBase').textContent=base.toFixed(2);
+  $('#scVol').textContent=vol.toFixed(2);
+  $('#scMas').textContent=mass.toFixed(2);
+  $('#scMul').textContent=mult.toFixed(2);
+  $('#scFail').textContent=fail;
+  $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
+  $('#scoreFinal').textContent=final.toFixed(1);
+}
+
+// --- Guía de capacidades ---
+$('#btnGuide').onclick=()=>{ mountCapTable(); $('#guideModal').classList.add('show'); };
+$('#closeGuide').onclick=()=>$('#guideModal').classList.remove('show');
+$$('.tap').forEach(b=>b.onclick=()=>{
+  $$('.tap').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  const t=b.dataset.t;
+  $('#tabA').style.display = (t==='a')?'block':'none';
+  $('#tabB').style.display = (t==='b')?'block':'none';
+  $('#tabC').style.display = (t==='c')?'block':'none';
+});
+function mountCapTable(){
+  $('#capN').textContent=state.crewN;
+  const tb=$('#capTable tbody'); tb.innerHTML='';
+  ['sleep','hygiene','galley','ops','med','ex','store','eclss','airlock'].forEach(k=>{
+    const m=MODULES.find(x=>x.key===k);
+    const tr=document.createElement('tr'); tr.dataset.key=k;
+    tr.innerHTML=`
+      <td>${m.name}</td>
+      <td>${CAP_INFO[k].base}</td>
+      <td><input type="number" step="0.1" value="${CAP_DEFAULTS[k]}" style="width:90px"></td>
+      <td class="rec"></td>
+      <td>${CAP_INFO[k].infl}</td>
+      <td>${CAP_INFO[k].rule}</td>`;
+    tb.appendChild(tr);
+  });
+  recalcCaps(); tb.querySelectorAll('input').forEach(i=>i.onchange=recalcCaps);
+}
+function recalcCaps(){
+  const N=state.crewN, tb=$('#capTable tbody');
+  tb.querySelectorAll('tr').forEach(tr=>{
+    const k=tr.dataset.key; const cap=parseFloat(tr.querySelector('input').value||CAP_DEFAULTS[k]);
+    const r = cap<=0? 0 : Math.ceil(N/cap); tr.querySelector('.rec').textContent=r;
+  });
+}
+$('#btnResetCaps').onclick=mountCapTable;
+$('#btnApplyCaps').onclick=()=>{
+  const tb=$('#capTable tbody');
+  tb.querySelectorAll('tr').forEach(tr=>{
+    const k=tr.dataset.key; const r=parseInt(tr.querySelector('.rec').textContent||'0',10);
+    const cur = state.items.filter(i=>i.key===k).length;
+    for(let i=cur;i<r;i++) insertModule(k,false);
+  });
+  $('#guideModal').classList.remove('show'); render();
+};
+
+// --- Boot ---
+function boot(){ ensureStairs(); computePPM(); render(); pushHistory(); }
+boot();
+
