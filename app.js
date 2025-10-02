@@ -1,20 +1,20 @@
-// Your Home in Space — V1.3.2
+// Your Home in Space — V1.3.2 (assets: envs moon/mars; sprites módulos en assets/modules/*.png)
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 
 const state = {
   version: '1.3.2',
-  view: 'top',
+  view: 'top',             // 'top' | 'front' | 'side'
   floor: 1,
   ppm: 30,
   margin: 30,
-  env: 'luna_sur',
+  env: 'moon',             // 'moon' | 'mars'
   crewN: 2,
   shell: { radius: 5, length: 12, floors: 3, gap: 2.5 }, // m
   items: [],
   selId: null,
-  images: {},
+  images: { modules:{} },  // cache de sprites módulos
   bgImg: { top: null, front: null, side: null },
   history: [], redo: []
 };
@@ -61,7 +61,9 @@ const shortName=(n)=>n.split('(')[0].trim();
 
 let nextId=1;
 
-// ---------- UI ----------
+/* =========================
+   UI
+   ========================= */
 function mountModuleList(){
   const list = $('#modList'); list.innerHTML='';
   MODULES.forEach(m=>{
@@ -112,9 +114,9 @@ $('#loadFile').onchange=(e)=>{
   fr.onload=()=>{
     try{
       const o=JSON.parse(fr.result);
-      state.env=o.env||'luna_sur'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
-      $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
-      ensureStairs(); computePPM(); render();
+      state.env=o.env||'moon'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
+      $('#envSel').value=state.env; $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
+      ensureStairs(); computePPM(); loadBackgrounds().then(render);
     }catch{ alert('JSON inválido'); }
   };
   fr.readAsText(f);
@@ -127,7 +129,9 @@ $('#btnSim').onclick=()=>alert('Simulación de vida (placeholder)');
 $$('.views .tab').forEach(b=>b.onclick=()=>{ $$('.views .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.view=b.dataset.v; computePPM(); render(); });
 $$('.floors .tab').forEach(b=>b.onclick=()=>{ $$('.floors .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.floor=parseInt(b.dataset.f,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); });
 
-// ---------- Undo/Redo ----------
+/* =========================
+   Undo / Redo
+   ========================= */
 function pushHistory(){
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   state.redo.length=0;
@@ -139,18 +143,33 @@ function redo(){ const s=state.redo.pop(); if(!s) return;
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
 
-// ---------- Assets (backgrounds al 50%) ----------
+/* =========================
+   Assets (backgrounds & módulos)
+   ========================= */
 const ASSET_ROOT='assets';
 const asset=(p)=>`${ASSET_ROOT}/${p}`;
-function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res(i); i.src=src; }); }
+function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
+
+// Backgrounds según env: assets/<env>/{top,front,side}.jpg
 async function loadBackgrounds(){
-  try{ state.bgImg.top   = await loadImg(asset(`backgrounds/${state.env}/top.jpg`)); }catch{}
-  try{ state.bgImg.front = await loadImg(asset(`backgrounds/${state.env}/front.jpg`)); }catch{}
-  try{ state.bgImg.side  = await loadImg(asset(`backgrounds/${state.env}/side.jpg`)); }catch{}
+  state.bgImg.top   = await loadImg(asset(`${state.env}/top.jpg`));
+  state.bgImg.front = await loadImg(asset(`${state.env}/front.jpg`));
+  state.bgImg.side  = await loadImg(asset(`${state.env}/side.jpg`));
+}
+
+// Sprites por módulo en UNA carpeta: assets/modules/<key>_<view>.png
+async function getModuleSprite(key, view){
+  const cacheKey = `${key}_${view}`;
+  if(state.images.modules[cacheKey]) return state.images.modules[cacheKey];
+  const img = await loadImg(asset(`modules/${cacheKey}.png`));
+  if(img) state.images.modules[cacheKey] = img;
+  return img || null;
 }
 loadBackgrounds();
 
-// ---------- Escala automática ----------
+/* =========================
+   Escala automática
+   ========================= */
 function computePPM(){
   const M=state.margin;
   let w_m,h_m;
@@ -163,7 +182,6 @@ function computePPM(){
   state.ppm=Math.max(10, Math.floor(Math.min(sx,sy)));
 }
 
-// ---------- Centros ----------
 function viewCenter(){
   const R=state.shell.radius, L=state.shell.length;
   if(state.view==='top')   return {x:R, y:L/2};
@@ -171,7 +189,9 @@ function viewCenter(){
   return {x:R, y:R + L/2};
 }
 
-// ---------- Inserción módulos ----------
+/* =========================
+   Inserción de módulos
+   ========================= */
 function insertModule(key,center=true){
   const def=MODULES.find(m=>m.key===key); if(!def) return;
   const sz=Math.max(2, Math.sqrt(def.nhv)||2);
@@ -187,7 +207,9 @@ function ensureStairs(){
   if(!has){ const c=viewCenter(); state.items.push({id:nextId++, key:'stairs', name:'Escalera', floor:1, x:c.x-1, y:c.y-1, w:2, h:2, rot:0, locked:false, stairs:true}); }
 }
 
-// ---------- Dibujo ----------
+/* =========================
+   Dibujo
+   ========================= */
 function drawBackground(){
   const k=state.view, img=state.bgImg[k]; if(!img) return;
   ctx.save(); ctx.globalAlpha=.5;
@@ -230,44 +252,69 @@ function drawScaleBar(){
   ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
   ctx.restore();
 }
+
 function getColor(key){ const m=MODULES.find(x=>x.key===key); return m?m.color:'#4aa3ff'; }
-function drawModule(it){
+
+// Dibuja sprite si existe; fallback a rectángulo
+async function drawModule(it){
   const x=m2p(it.x), y=m2p(it.y), w=m2p(it.w), h=m2p(it.h);
+  const sprite = await getModuleSprite(it.key, state.view); // carga perezosa por vista
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
-  const col = collides(it) ? 'rgba(239,68,68,0.85)' : 'rgba(74,163,255,0.85)';
-  ctx.fillStyle = hex2rgba(getColor(it.key), .85);
-  ctx.strokeStyle = col; ctx.lineWidth=2;
-  ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+
+  if(sprite){
+    // Mantener proporción del sprite dentro de w x h
+    const rS = sprite.width/sprite.height;
+    let dw=w, dh=h;
+    if(w/h > rS){ dw = h*rS; } else { dh = w/rS; }
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(sprite, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
+    ctx.globalAlpha = 1.0;
+    // borde para colisión/selección
+    const col = collides(it) ? 'rgba(239,68,68,0.9)' : 'rgba(74,163,255,0.9)';
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.strokeRect(x,y,w,h);
+  } else {
+    const col = collides(it) ? 'rgba(239,68,68,0.85)' : 'rgba(74,163,255,0.85)';
+    ctx.fillStyle = hex2rgba(getColor(it.key), .85);
+    ctx.strokeStyle = col; ctx.lineWidth=2;
+    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+  }
+
+  // etiqueta y badge
   ctx.fillStyle='#0b0f17'; ctx.font='12px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
-  // badge
   ctx.fillStyle='rgba(20,40,77,.85)'; ctx.strokeStyle='rgba(41,74,122,.9)'; ctx.lineWidth=1; const bw=34,bh=16;
   ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
   ctx.fillStyle='#9fc5ff'; ctx.fillText(`P${it.floor}`, x+w-bw+8,y+16);
+
   ctx.restore();
+
   if(state.selId===it.id) drawHandles(x,y,w,h);
 }
+
 function drawHandles(x,y,w,h){
   const hs=7;
   const pts=[[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]];
   ctx.save();
   ctx.fillStyle='#fff';
   pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#0b0f17'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
-  // centro mover
   ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
-  // rotar
   ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaf'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
   ctx.restore();
 }
-function render(){
+
+async function render(){
   ctx.clearRect(0,0,cv.width,cv.height);
   computePPM(); drawBackground(); drawShell();
   const arr=state.items.filter(i=>i.floor===state.floor);
-  for(const it of arr) drawModule(it);
+  // dibujar en orden
+  for(const it of arr) await drawModule(it);
   drawScaleBar(); updateScore();
 }
 
-// ---------- Selección/edición ----------
+/* =========================
+   Interacción (select/drag/resize/rotate)
+   ========================= */
 function currentSel(){ return state.items.find(i=>i.id===state.selId); }
 function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
 function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
@@ -331,7 +378,9 @@ function pickItem(p){
   return null;
 }
 
-// ---------- Colisiones ----------
+/* =========================
+   Colisiones y score
+   ========================= */
 function collides(A){
   const a={x:A.x,y:A.y,w:A.w,h:A.h,f:A.floor};
   for(const B of state.items){ if(B.id===A.id||B.floor!==A.floor) continue;
@@ -345,7 +394,27 @@ function collides(A){
   return false;
 }
 
-// ---------- Propiedades ----------
+function updateScore(){
+  const needsStairs = state.shell.floors>1;
+  const hasStairs = state.items.some(i=>i.key==='stairs');
+  let base=0.5, vol=0.5, mass=1.0, mult=0.5, fail='—';
+  if(needsStairs && !hasStairs){ base=0; vol=0; mult=0; fail='sin conectividad vertical (falta escalera)'; }
+  let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
+  base = Math.max(0, base - Math.min(1, collisions*0.05));
+  const final = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
+  $('#scColl').textContent=collisions.toFixed(2);
+  $('#scBase').textContent=base.toFixed(2);
+  $('#scVol').textContent=vol.toFixed(2);
+  $('#scMas').textContent=mass.toFixed(2);
+  $('#scMul').textContent=mult.toFixed(2);
+  $('#scFail').textContent=fail;
+  $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
+  $('#scoreFinal').textContent=final.toFixed(1);
+}
+
+/* =========================
+   Propiedades
+   ========================= */
 function updateProp(){
   const box=$('#propBox'); const it=currentSel();
   if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
@@ -374,26 +443,9 @@ function updateProp(){
   });
 }
 
-// ---------- Score simplificado ----------
-function updateScore(){
-  const needsStairs = state.shell.floors>1;
-  const hasStairs = state.items.some(i=>i.key==='stairs');
-  let base=0.5, vol=0.5, mass=1.0, mult=0.5, fail='—';
-  if(needsStairs && !hasStairs){ base=0; vol=0; mult=0; fail='sin conectividad vertical (falta escalera)'; }
-  let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
-  base = Math.max(0, base - Math.min(1, collisions*0.05));
-  const final = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
-  $('#scColl').textContent=collisions.toFixed(2);
-  $('#scBase').textContent=base.toFixed(2);
-  $('#scVol').textContent=vol.toFixed(2);
-  $('#scMas').textContent=mass.toFixed(2);
-  $('#scMul').textContent=mult.toFixed(2);
-  $('#scFail').textContent=fail;
-  $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
-  $('#scoreFinal').textContent=final.toFixed(1);
-}
-
-// ---------- Guía de capacidades ----------
+/* =========================
+   Guía de capacidades
+   ========================= */
 $('#btnGuide').onclick=()=>{ mountCapTable(); $('#guideModal').classList.add('show'); };
 $('#closeGuide').onclick=()=>$('#guideModal').classList.remove('show');
 $$('.tap').forEach(b=>b.onclick=()=>{
@@ -438,7 +490,9 @@ $('#btnApplyCaps').onclick=()=>{
   $('#guideModal').classList.remove('show'); render();
 };
 
-// ---------- Boot ----------
+/* =========================
+   Boot
+   ========================= */
 function drawScaleBar(){ const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
   ctx.save(); ctx.strokeStyle='#ddd'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+pxLen,y0); ctx.stroke();
@@ -448,5 +502,5 @@ function drawScaleBar(){ const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-
   ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
   ctx.restore();
 }
-function boot(){ ensureStairs(); computePPM(); render(); pushHistory(); }
+function boot(){ ensureStairs(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
