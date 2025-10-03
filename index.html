@@ -18,7 +18,7 @@
     </select>
   </label>
   <label>Tripulación (N):
-    <input id="crewN" type="number" min="1" max="12" value="2" style="width:72px">
+    <input id="crewN" type="number" min="1" max="24" value="2" style="width:72px">
   </label>
   <button id="btnGuide">Guía (módulos)</button>
   <button id="btnUndo">Deshacer</button>
@@ -70,6 +70,7 @@
   <aside class="panel props">
     <h3>Propiedades</h3>
     <div id="propBox"><div class="hint">Seleccioná un módulo…</div></div>
+
     <div class="score">
       <div><b>Score & Estado</b></div>
       <div id="scoreBox">
@@ -77,15 +78,9 @@
         <div>Adyacencias: <span id="scAdj">1.00</span></div>
         <div>NHV eficiencia: —</div>
         <div>Masa total (kg): <span id="scMass">0</span></div>
-        <div class="mt">Vida estimada (días): <span id="scDays">0</span></div>
-        <div>Motivo de fallo: <span id="scFail">—</span></div>
-        <div class="mt">
-          <div>Score base (0–1): <span id="scBase">0.00</span></div>
-          <div>Opt volumen (0–1): <span id="scVol">0.50</span></div>
-          <div>Opt masa (0–1): <span id="scMas">1.00</span></div>
-          <div>Mult. funcional (0–1): <span id="scMul">0.50</span></div>
-        </div>
-        <div class="mt"><b>Score final (0–100):</b> <span id="scoreFinal">0.0</span></div>
+        <div class="mt"><b>Diseño (0–100):</b> <span id="scoreDesign">0.0</span></div>
+        <div>Supervivencia (0–1): <span id="scoreSurv">0.00</span></div>
+        <div class="mt"><b>Score efectivo:</b> <span id="scoreFinal">0.0</span></div>
       </div>
       <button id="btnScoreDetail" class="btn secondary mt">Ver detalle de cálculo</button>
     </div>
@@ -130,6 +125,19 @@
       <ul>
         <li>Valores orientativos extraídos de documentación NASA para layouts/funciones de hábitat (SH/TH/PCM).</li>
       </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Simulación -->
+<div id="simModal" class="modal" aria-hidden="true">
+  <div class="card">
+    <div class="cardhead">
+      <h2>Simulación de vida — Métricas</h2>
+      <button id="closeSim" class="btn secondary">Cerrar ✕</button>
+    </div>
+    <div id="simContent">
+      <!-- se llena por JS -->
     </div>
   </div>
 </div>
