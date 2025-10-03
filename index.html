@@ -50,20 +50,23 @@
   <main class="canvas-wrap panel">
     <div class="rowbar">
       <div class="tabs views">
-        <button data-v="top"   class="tab active">Vista Superior — <b>Plano XY</b></button>
-        <button data-v="front" class="tab">Vista Frontal — <b>Plano XZ</b></button>
-        <button data-v="side"  class="tab">Vista Lateral — <b>Plano YZ</b></button>
+        <label>Vista:
+          <select id="viewSel">
+            <option value="top">Vista Superior — Plano XY</option>
+            <option value="front">Vista Frontal — Plano XZ</option>
+            <option value="side">Vista Lateral — Plano YZ</option>
+          </select>
+        </label>
       </div>
       <div class="tabs floors">
-        <span class="lbl">Piso:</span>
-        <button data-f="1" class="tab active">1</button>
-        <button data-f="2" class="tab">2</button>
-        <button data-f="3" class="tab">3</button>
+        <label>Piso:
+          <select id="floorSel"></select>
+        </label>
       </div>
     </div>
     <canvas id="cv" width="1280" height="640"></canvas>
     <div id="floorBadge" class="pill badge">Piso activo: 1</div>
-    <div class="kbd">Atajos: Flechas= mover 0.1 m (Shift=1 m) · R=rotar 15°</div>
+    <div class="kbd">Atajos: Flechas= mover 0.1 m (Shift=1 m) · R=rotar 15° · Supr=eliminar</div>
   </main>
 
   <!-- Derecha -->
@@ -136,9 +139,7 @@
       <h2>Simulación de vida — Métricas</h2>
       <button id="closeSim" class="btn secondary">Cerrar ✕</button>
     </div>
-    <div id="simContent">
-      <!-- se llena por JS -->
-    </div>
+    <div id="simContent"></div>
   </div>
 </div>
 
