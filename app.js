@@ -84,16 +84,29 @@ function syncShellInputs(){
 }
 syncShellInputs();
 
+function rebuildFloorOptions(){
+  const sel=$('#floorSel'); const cur=state.floor;
+  sel.innerHTML='';
+  for(let i=1;i<=state.shell.floors;i++){
+    const o=document.createElement('option'); o.value=i; o.textContent=i; sel.appendChild(o);
+  }
+  sel.value = Math.min(cur, state.shell.floors);
+  state.floor = parseInt(sel.value,10);
+  $('#floorBadge').textContent=`Piso activo: ${state.floor}`;
+}
+rebuildFloorOptions();
+
 ['inpR','inpL','inpFloors','inpGap'].forEach(id=>{
   document.getElementById(id).addEventListener('change', ()=>{
     state.shell.radius = parseFloat($('#inpR').value||5);
     state.shell.length = parseFloat($('#inpL').value||12);
     state.shell.floors = parseInt($('#inpFloors').value||3,10);
     state.shell.gap    = parseFloat($('#inpGap').value||2.5);
+    rebuildFloorOptions();
     computePPM(); render();
   });
 });
-$('#btnShellApply').onclick=()=>{ computePPM(); render(); };
+$('#btnShellApply').onclick=()=>{ rebuildFloorOptions(); computePPM(); render(); };
 
 $('#btnReset').onclick=()=>{
   if(!confirm('¿Seguro que deseas volver a comenzar?')) return;
@@ -115,7 +128,7 @@ $('#loadFile').onchange=(e)=>{
       const o=JSON.parse(fr.result);
       state.env=o.env||'moon'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
       $('#envSel').value=state.env; $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
-      computePPM(); loadBackgrounds().then(render);
+      rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render);
     }catch{ alert('JSON inválido'); }
   };
   fr.readAsText(f);
@@ -125,8 +138,26 @@ $('#crewN').onchange=(e)=>{ state.crewN=parseInt(e.target.value||2,10); $('#capN
 $('#envSel').onchange=(e)=>{ state.env=e.target.value; loadBackgrounds().then(render); };
 $('#btnSim').onclick=()=>openSimulation();
 
-$$('.views .tab').forEach(b=>b.onclick=()=>{ $$('.views .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.view=b.dataset.v; computePPM(); render(); });
-$$('.floors .tab').forEach(b=>b.onclick=()=>{ $$('.floors .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.floor=parseInt(b.dataset.f,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); });
+$('#viewSel').onchange=(e)=>{ state.view=e.target.value; computePPM(); render(); };
+$('#floorSel').onchange=(e)=>{ state.floor=parseInt(e.target.value,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); };
+
+// ---------- Atajos: mover/rotar/eliminar ----------
+window.addEventListener('keydown',(e)=>{
+  const it=currentSel();
+  const step = e.shiftKey? 1.0 : 0.1;
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','r','R','Delete'].includes(e.key)) e.preventDefault();
+  if(!it && e.key!=='Delete') return;
+  if(e.key==='ArrowLeft')  { it.x -= step; changed(); }
+  if(e.key==='ArrowRight') { it.x += step; changed(); }
+  if(e.key==='ArrowUp')    { it.y -= step; changed(); }
+  if(e.key==='ArrowDown')  { it.y += step; changed(); }
+  if(e.key==='r' || e.key==='R'){ it.rot = (it.rot+15)%360; changed(); }
+  if(e.key==='Delete' && state.selId!=null){
+    state.items = state.items.filter(x=>x.id!==state.selId);
+    state.selId=null; render(); pushHistory(); updateProp();
+  }
+  function changed(){ render(); pushHistory(); }
+});
 
 // ---------- Undo/Redo ----------
 function pushHistory(){
@@ -135,16 +166,15 @@ function pushHistory(){
 }
 function undo(){ const s=state.history.pop(); if(!s) return;
   state.redo.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
-  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
+  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; $('#viewSel').value=state.view; rebuildFloorOptions(); render(); }
 function redo(){ const s=state.redo.pop(); if(!s) return;
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
-  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
+  const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; $('#viewSel').value=state.view; rebuildFloorOptions(); render(); }
 
 // ---------- Assets ----------
 const ASSET_ROOT='assets';
 const asset=(p)=>`${ASSET_ROOT}/${p}`;
 function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
-
 async function loadBackgrounds(){
   state.bgImg.top   = await loadImg(asset(`${state.env}/top.jpg`));
   state.bgImg.front = await loadImg(asset(`${state.env}/front.jpg`));
@@ -185,11 +215,10 @@ function insertModule(key,center=true){
   const it={
     id:nextId++, key, name:def.name,
     floor:state.floor, x:0, y:0, w:sz, h:sz, rot:0, locked:false,
-    geometry: (key==='sleep' ? 'cyl' : 'cube') // por defecto: sueño cilíndrico
+    geometry:'rect' // por defecto TODOS rectangulares
   };
-  if(key==='corr'){ it.w=1.2; it.h=4; it.geometry='rect'; }
-  if(key==='stairs'){ it.w=2; it.h=2; it.geometry='rect'; } // NO se agrega automáticamente nunca
-  if(it.geometry==='cyl'){ const r=sz/2; it.radius=r; it.w=it.h=2*r; }
+  if(key==='corr'){ it.w=1.2; it.h=4; }
+  if(key==='stairs'){ it.w=2; it.h=2; } // no se agrega automáticamente
   if(center){ const c=viewCenter(); it.x=c.x-it.w/2; it.y=c.y-it.h/2; }
   state.items.push(it); state.selId=it.id; pushHistory(); render();
 }
@@ -206,7 +235,7 @@ function drawBackground(){
 function drawShellInterior(){
   ctx.save();
   const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
-  ctx.fillStyle='rgba(180,190,205,0.18)'; // gris interior
+  ctx.fillStyle='rgba(180,190,205,0.21)'; // gris interior +15%
   ctx.strokeStyle='rgba(80,120,200,0.9)'; ctx.lineWidth=2;
   if(state.view==='top'){
     const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
@@ -218,7 +247,7 @@ function drawShellInterior(){
     drawFloorLines(left,top,w,h, m2p(state.shell.gap));
   }else{
     const h=L+R*2, top=(cv.height-h)/2, left=cx-R, right=cx+R;
-    // tapa superior
+    // tapa superior y volumen
     ctx.beginPath(); ctx.moveTo(left,top+R);
     ctx.arc(cx, top+R, R, Math.PI, 0,false);
     ctx.lineTo(right, top+R+L); ctx.lineTo(left, top+R+L); ctx.closePath();
@@ -258,9 +287,9 @@ async function drawModule(it){
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
 
-  // FONDO gris “piso” del módulo (evita ver el background dentro)
-  ctx.fillStyle='rgba(210,220,230,0.3)';
-  if(state.view==='top' && it.geometry==='cyl'){
+  // FONDO gris “piso” del módulo (oscurecido +15%)
+  ctx.fillStyle='rgba(210,220,230,0.35)';
+  if(state.view==='top' && it.key==='sleep'){
     const r=Math.min(w,h)/2;
     ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
   }else{
@@ -275,16 +304,15 @@ async function drawModule(it){
     ctx.drawImage(sprite, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
     ctx.globalAlpha = 1.0;
   }else{
-    // Fallback vectorial según geometría
     ctx.fillStyle = hex2rgba(getColor(it.key), .85);
-    if(state.view==='top' && it.geometry==='cyl'){
+    // Sueño: Top circular, Front/Side rectangular (coherentes)
+    if(state.view==='top' && it.key==='sleep'){
       const r=Math.min(w,h)/2;
       ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
     }else if(state.view==='top' && it.geometry==='rhomb'){
       ctx.beginPath();
       ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.fill();
     }else{
-      // cube/rect y vistas front/side
       roundRect(ctx,x,y,w,h,6,true,false);
     }
   }
@@ -292,7 +320,7 @@ async function drawModule(it){
   // borde (colisión o normal)
   const col = collides(it) ? 'rgba(239,68,68,0.9)' : 'rgba(74,163,255,0.9)';
   ctx.strokeStyle = col; ctx.lineWidth = 2;
-  if(state.view==='top' && it.geometry==='cyl'){
+  if(state.view==='top' && it.key==='sleep'){
     const r=Math.min(w,h)/2; ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.stroke();
   }else if(state.view==='top' && it.geometry==='rhomb'){
     ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.stroke();
@@ -300,7 +328,7 @@ async function drawModule(it){
     ctx.strokeRect(x,y,w,h);
   }
 
-  // etiqueta y badge de piso (tipo P1)
+  // etiqueta y badge Pn
   ctx.fillStyle='#0b0f17'; ctx.font='12px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
   ctx.fillStyle='rgba(20,40,77,.85)'; ctx.strokeStyle='rgba(41,74,122,.9)'; ctx.lineWidth=1; const bw=34,bh=16;
   ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
@@ -308,7 +336,7 @@ async function drawModule(it){
 
   ctx.restore();
 
-  if(state.selId===it.id) drawHandles(it,x,y,w,h);
+  if(state.selId===it.id) drawHandles(x,y,w,h);
 }
 function roundRect(ctx,x,y,w,h,r,fill,stroke){
   if(r>Math.min(w,h)/2) r=Math.min(w,h)/2;
@@ -322,22 +350,14 @@ function roundRect(ctx,x,y,w,h,r,fill,stroke){
   if(stroke) ctx.stroke();
 }
 
-function drawHandles(it,x,y,w,h){
+function drawHandles(x,y,w,h){
   const hs=7;
   const pts=[[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]];
   ctx.save();
   ctx.fillStyle='#fff';
   pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#0b0f17'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
-  // centro mover
   ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
-  // rotar
   ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaf'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
-
-  // handle de radio para cilíndricos (Top)
-  if(state.view==='top' && it.geometry==='cyl'){
-    ctx.beginPath(); ctx.arc(x+w, y+h/2, hs, 0, Math.PI*2); ctx.fillStyle='#c4f0ff'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
-  }
-  ctx.restore();
 }
 
 async function render(){
@@ -348,30 +368,21 @@ async function render(){
   drawScaleBar(); updateScore();
 }
 
-// ---------- Interacción ----------
+// ---------- Interacción ratón ----------
 function currentSel(){ return state.items.find(i=>i.id===state.selId); }
 function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
 function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
 function getMouseM(ev){ const r=cv.getBoundingClientRect(); const x=(ev.clientX-r.left)*(cv.width/r.width); const y=(ev.clientY-r.top)*(cv.height/r.height); return {x:p2m(x), y:p2m(y)}; }
-function hitHandle(it,p, box){
-  const hs=7, radH=10; const pts=[[box.x,box.y],[box.x+box.w/2,box.y],[box.x+box.w,box.y],[box.x+box.w,box.y+box.h/2],[box.x+box.w,box.y+box.h],[box.x+box.w/2,box.y+box.h],[box.x,box.y+box.h],[box.x,box.y+box.h/2]];
-  const X=m2p(p.x), Y=m2p(p.y);
-  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y-18))<=radH) return 'rot';
-  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y+box.h/2))<=radH) return 'move';
-  if(state.view==='top' && it.geometry==='cyl' && Math.hypot(X-(box.x+box.w), Y-(box.y+box.h/2))<=radH) return 'rad';
-  for(let i=0;i<pts.length;i++) if(Math.abs(X-pts[i][0])<=hs && Math.abs(Y-pts[i][1])<=hs) return i;
-  return null;
-}
 
 let drag=null;
 cv.addEventListener('mousedown', (e)=>{
   const pos=getMouseM(e);
   const it = pickItem(pos); state.selId = it? it.id : null; updateProp();
   const sel=currentSel(); if(!sel){ render(); return; }
-  const box=itemBoxPx(sel); const hit=hitHandle(sel,pos, box);
+  const box=itemBoxPx(sel);
+  const hit=hitHandle(pos, box);
   if(hit==='move'){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
   else if(hit==='rot'){ drag={mode:'rot', start:pos}; }
-  else if(hit==='rad'){ drag={mode:'rad', start:pos, startW:sel.w}; }
   else if(typeof hit==='number'){ drag={mode:'res', idx:hit, start:pos, startBox:{x:sel.x,y:sel.y,w:sel.w,h:sel.h}}; }
   else if(pointInBoxPx(pos, box)){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
 });
@@ -379,9 +390,6 @@ cv.addEventListener('mousemove', async (e)=>{
   if(!drag) return; const pos=getMouseM(e); const it=currentSel(); if(!it) return;
   if(drag.mode==='move'){ it.x=pos.x-drag.offx; it.y=pos.y-drag.offy; }
   else if(drag.mode==='rot'){ const c={x:it.x+it.w/2,y:it.y+it.h/2}; it.rot = clamp(deg(Math.atan2(pos.y-c.y,pos.x-c.x)), -180,180); }
-  else if(drag.mode==='rad'){
-    let dx = (pos.x - (it.x+it.w/2)); let r = Math.max(0.5, Math.abs(dx)); it.radius=r; it.w=it.h=2*r;
-  }
   else if(drag.mode==='res'){
     const i=drag.idx, sb=drag.startBox, dx=pos.x-drag.start.x, dy=pos.y-drag.start.y; let x=sb.x,y=sb.y,w=sb.w,h=sb.h;
     if(i===0){ x=sb.x+dx; y=sb.y+dy; w=sb.w-dx; h=sb.h-dy; }
@@ -394,23 +402,20 @@ cv.addEventListener('mousemove', async (e)=>{
     if(i===7){ x=sb.x+dx; }
     const min= it.key==='corr' ? {w:.8,h:1.0} : {w:1.0,h:1.0};
     it.x=x; it.y=y; it.w=Math.max(min.w,w); it.h=Math.max(min.h,h);
-    if(it.geometry==='cyl'){ const r=Math.min(it.w,it.h)/2; it.radius=r; it.w=it.h=2*r; }
   }
   await render();
 });
 window.addEventListener('mouseup',()=>{ if(drag){ drag=null; pushHistory(); updateScore(); } });
 
-window.addEventListener('keydown',(e)=>{
-  const it=currentSel(); if(!it) return;
-  const step = e.shiftKey? 1.0 : 0.1;
-  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','r','R'].includes(e.key)) e.preventDefault();
-  if(e.key==='ArrowLeft')  it.x -= step;
-  if(e.key==='ArrowRight') it.x += step;
-  if(e.key==='ArrowUp')    it.y -= step;
-  if(e.key==='ArrowDown')  it.y += step;
-  if(e.key==='r' || e.key==='R') it.rot = (it.rot+15)%360;
-  render(); pushHistory();
-});
+function hitHandle(p, box){
+  const hs=7, radH=10; const pts=[[box.x,box.y],[box.x+box.w/2,box.y],[box.x+box.w,box.y],[box.x+box.w,box.y+box.h/2],[box.x+box.w,box.y+box.h],[box.x+box.w/2,box.y+box.h],[box.x,box.y+box.h],[box.x,box.y+box.h/2]];
+  const X=m2p(p.x), Y=m2p(p.y);
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y-18))<=radH) return 'rot';
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y+box.h/2))<=radH) return 'move';
+  for(let i=0;i<pts.length;i++) if(Math.abs(X-pts[i][0])<=hs && Math.abs(Y-pts[i][1])<=hs) return i;
+  return null;
+}
+
 function pickItem(p){
   const arr=state.items.filter(i=>i.floor===state.floor);
   for(let i=arr.length-1;i>=0;i--){ const it=arr[i]; if(pointInBoxPx(p, itemBoxPx(it))) return it; }
@@ -431,7 +436,7 @@ function collides(A){
   return false;
 }
 
-// ---------- Propiedades panel ----------
+// ---------- Propiedades ----------
 function updateProp(){
   const box=$('#propBox'); const it=currentSel();
   if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
@@ -440,13 +445,11 @@ function updateProp(){
     <div class="kv"><div>Piso</div><input id="pFloor" type="number" min="1" max="${state.shell.floors}" value="${it.floor}"></div>
     <div class="kv"><div>Geometría</div>
       <select id="pGeom">
-        <option value="cube" ${it.geometry==='cube'?'selected':''}>Cúbica</option>
-        <option value="cyl" ${it.geometry==='cyl'?'selected':''}>Cilíndrica (tapas rectas)</option>
         <option value="rect" ${it.geometry==='rect'?'selected':''}>Prisma rectangular</option>
+        <option value="cube" ${it.geometry==='cube'?'selected':''}>Cúbica</option>
         <option value="rhomb" ${it.geometry==='rhomb'?'selected':''}>Rómbica</option>
       </select>
     </div>
-    ${it.geometry==='cyl'?`<div class="kv"><div>Radio (m)</div><input id="pRad" type="number" step="0.1" value="${(it.radius||it.w/2).toFixed(2)}"></div>`:''}
     <div class="kv"><div>X (m)</div><input id="pX" type="number" step="0.1" value="${it.x.toFixed(2)}"></div>
     <div class="kv"><div>Y (m)</div><input id="pY" type="number" step="0.1" value="${it.y.toFixed(2)}"></div>
     <div class="kv"><div>Ancho (m)</div><input id="pW" type="number" step="0.1" value="${it.w.toFixed(2)}"></div>
@@ -454,9 +457,8 @@ function updateProp(){
     <div class="kv"><div>Rotación (°)</div><input id="pR" type="number" step="1" value="${it.rot.toFixed(0)}"></div>
     <div class="kv"><div>Bloqueado</div><input id="pLock" type="checkbox" ${it.locked?'checked':''}></div>
   `;
-  $('#pGeom').onchange=(e)=>{ it.geometry=e.target.value; if(it.geometry==='cyl'){ const r=Math.min(it.w,it.h)/2; it.radius=r; it.w=it.h=2*r; } updateProp(); render(); pushHistory(); };
-  const ids=['pFloor','pX','pY','pW','pH','pR','pLock','pRad'];
-  ids.forEach(id=>{
+  $('#pGeom').onchange=(e)=>{ it.geometry=e.target.value; updateProp(); render(); pushHistory(); };
+  ['pFloor','pX','pY','pW','pH','pR','pLock'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.onchange=(e)=>{
       if(id==='pFloor') it.floor=clamp(parseInt(e.target.value,10),1,state.shell.floors);
@@ -466,7 +468,6 @@ function updateProp(){
       else if(id==='pY') it.y=parseFloat(e.target.value||it.y);
       else if(id==='pW') it.w=Math.max(0.3,parseFloat(e.target.value||it.w));
       else if(id==='pH') it.h=Math.max(0.3,parseFloat(e.target.value||it.h));
-      else if(id==='pRad'){ const r=Math.max(0.5,parseFloat(e.target.value||1)); it.radius=r; it.w=it.h=2*r; }
       render(); pushHistory(); updateScore();
     };
   });
@@ -480,7 +481,7 @@ function updateScore(){
   base = Math.max(0, base - Math.min(1, collisions*0.05));
   const design = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
 
-  // Supervivencia (0..1) por coberturas mínimas
+  // Supervivencia (0..1)
   const surv = computeSurvivalFactor();
 
   const final = +(design * surv).toFixed(1);
@@ -490,7 +491,6 @@ function updateScore(){
   $('#scoreSurv').textContent=surv.toFixed(2);
   $('#scoreFinal').textContent=final.toFixed(1);
 }
-
 function computeSurvivalFactor(){
   const N=state.crewN;
   const counts = key=> state.items.filter(i=>i.key===key).length;
@@ -507,18 +507,16 @@ function computeSurvivalFactor(){
     const ok = req===0?1:(have/req);
     return {key:k,label:lab,req,have,ok:Math.min(1,ok)};
   });
-  // mínimo de coberturas (capado a 1)
   const surv = needs.reduce((m,n)=>Math.min(m,n.ok),1);
   computeSurvivalFactor._lastNeeds=needs;
   return surv;
 }
 
-// ---------- Simulación (modal con métricas y sugerencias) ----------
+// ---------- Simulación ----------
 function openSimulation(){
   const needs = computeSurvivalFactor._lastNeeds || (computeSurvivalFactor(), computeSurvivalFactor._lastNeeds);
   const days = needs.some(n=>n.ok<1) ? 0 : 30; // placeholder simple
   const sugg = needs.filter(n=>n.ok<1).map(n=>`Falta ${n.req-n.have} × ${n.label} (req=${n.req} para N=${state.crewN})`);
-  const okList = needs.filter(n=>n.ok>=1).map(n=>`✔ ${n.label}: OK (${n.have}/${n.req})`);
   const html = `
     <div class="sim-grid">
       <div class="callout">
@@ -590,9 +588,5 @@ $('#btnApplyCaps').onclick=()=>{
 };
 
 // ---------- Boot ----------
-function drawAll(){
-  drawBackground(); drawShellInterior();
-}
-function drawScaleBarWrapper(){ drawScaleBar(); }
-function boot(){ computePPM(); loadBackgrounds().then(render); pushHistory(); }
+function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
