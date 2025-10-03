@@ -19,7 +19,7 @@ header .warn{background:#3a2b12;border-color:#80622b}
 hr{border:0;border-top:1px solid #1c314f;margin:.6rem 0}
 
 .modules .item{display:flex;justify-content:space-between;align-items:center;margin:.3rem 0;background:#0f2340;border:1px solid #283e63;border-radius:8px;padding:.45rem .55rem;cursor:pointer}
-.modules .badge{font-size:12px;color:#9dc2ff;background:#142b4d;border:1px solid #294a7a;border-radius:6px;padding:.05rem .35rem}
+.modules .item span:last-child{display:none} /* quitamos P? */
 .modules .hint{color:#7aa8e8;font-size:12px;margin:.4rem 0 .1rem 0}
 .hintSmall{color:#8fb3e6;font-size:12px;margin-top:.25rem}
 
@@ -33,7 +33,7 @@ canvas{width:100%;height:640px;background:#000;border:1px solid #1c314f;border-r
 .badge{align-self:flex-start;margin-top:-4px}
 
 .props .kv{display:grid;grid-template-columns:120px 1fr;gap:6px;margin:.25rem 0}
-.props input{background:#0f2340;color:var(--fg);border:1px solid #28436a;border-radius:6px;padding:.3rem .45rem}
+.props input, .props select{background:#0f2340;color:var(--fg);border:1px solid #28436a;border-radius:6px;padding:.3rem .45rem}
 .props .ro{opacity:.8}
 .score{background:#0f2340;border:1px dashed #2a466d;border-radius:8px;padding:.5rem;margin-top:.5rem}
 .score .mt{margin-top:.35rem}
@@ -55,3 +55,10 @@ th{background:#122745;color:#cfe6ff;position:sticky;top:0}
 .btn{background:#153457;border:1px solid #38679f;color:var(--fg);border-radius:8px;padding:.45rem .7rem;cursor:pointer}
 .btn.secondary{background:#0f2340;border-color:#28436a}
 .btn.ok{background:#0f3a2c;border-color:#2a7c5e}
+
+/* Simulación */
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.callout{background:#0f2340;border:1px solid #28436a;border-radius:8px;padding:10px}
+.bad{color:#ffb4b4}
+.good{color:#9ff3c5}
+.kpi{font-size:15px}
