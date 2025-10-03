@@ -1,4 +1,4 @@
-// Your Home in Space — V1.3.2 (assets: envs moon/mars; sprites módulos en assets/modules/*.png)
+// Your Home in Space — V1.3.2 (moon/mars; sprites módulos en assets/modules/<clave>_<vista>.png)
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -14,13 +14,14 @@ const state = {
   shell: { radius: 5, length: 12, floors: 3, gap: 2.5 }, // m
   items: [],
   selId: null,
-  images: { modules:{} },  // cache de sprites módulos
+  images: { modules:{} },
   bgImg: { top: null, front: null, side: null },
   history: [], redo: []
 };
 
+// ---------- Catálogo ----------
 const MODULES = [
-  {key:'sleep',   name:'Sueño (crew quarters)', nhv:4,  mass:100, color:'#4aa3ff'},
+  {key:'sleep',   name:'Sueño (crew quarters)', nhv:4,  mass:100, color:'#6aa7ff'},
   {key:'hygiene', name:'Higiene + UWMS',        nhv:6,  mass:180, color:'#6ed4ff'},
   {key:'galley',  name:'Galley + Mesa común',   nhv:8,  mass:160, color:'#62e6b9'},
   {key:'ops',     name:'Trabajo / Comando crítico', nhv:6, mass:150, color:'#8cf0a7'},
@@ -49,6 +50,7 @@ const CAP_INFO = {
   airlock:{base:'min. recomendado NASA',infl:'Riesgo, Energía',rule:'1 módulo cada ~4 trip.'}
 };
 
+// ---------- Helpers ----------
 const $ = (q)=>document.querySelector(q);
 const $$ = (q)=>document.querySelectorAll(q);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -58,19 +60,16 @@ const m2p=(m)=>m*state.ppm;
 const p2m=(p)=>p/state.ppm;
 const hex2rgba=(h,a)=>{const x=h.replace('#','');return`rgba(${parseInt(x.slice(0,2),16)},${parseInt(x.slice(2,4),16)},${parseInt(x.slice(4,6),16)},${a})`;};
 const shortName=(n)=>n.split('(')[0].trim();
-
 let nextId=1;
 
-/* =========================
-   UI
-   ========================= */
+// ---------- UI ----------
 function mountModuleList(){
   const list = $('#modList'); list.innerHTML='';
   MODULES.forEach(m=>{
     const row=document.createElement('div');
     row.className='item';
     row.dataset.key=m.key;
-    row.innerHTML=`<span>${m.name} <small style="opacity:.7">(NHV_ref ${m.nhv} m²)</small></span><span class="badge">P?</span>`;
+    row.innerHTML=`<span>${m.name} <small style="opacity:.7">(NHV_ref ${m.nhv} m²)</small></span><span></span>`;
     row.onclick=()=>insertModule(m.key,true);
     list.appendChild(row);
   });
@@ -91,14 +90,14 @@ syncShellInputs();
     state.shell.length = parseFloat($('#inpL').value||12);
     state.shell.floors = parseInt($('#inpFloors').value||3,10);
     state.shell.gap    = parseFloat($('#inpGap').value||2.5);
-    ensureStairs(); computePPM(); render();
+    computePPM(); render();
   });
 });
 $('#btnShellApply').onclick=()=>{ computePPM(); render(); };
 
 $('#btnReset').onclick=()=>{
   if(!confirm('¿Seguro que deseas volver a comenzar?')) return;
-  state.items=[]; state.selId=null; ensureStairs(); pushHistory(); render();
+  state.items=[]; state.selId=null; pushHistory(); render();
 };
 $('#btnUndo').onclick=undo; $('#btnRedo').onclick=redo;
 
@@ -116,7 +115,7 @@ $('#loadFile').onchange=(e)=>{
       const o=JSON.parse(fr.result);
       state.env=o.env||'moon'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
       $('#envSel').value=state.env; $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
-      ensureStairs(); computePPM(); loadBackgrounds().then(render);
+      computePPM(); loadBackgrounds().then(render);
     }catch{ alert('JSON inválido'); }
   };
   fr.readAsText(f);
@@ -124,14 +123,12 @@ $('#loadFile').onchange=(e)=>{
 
 $('#crewN').onchange=(e)=>{ state.crewN=parseInt(e.target.value||2,10); $('#capN').textContent=state.crewN; };
 $('#envSel').onchange=(e)=>{ state.env=e.target.value; loadBackgrounds().then(render); };
-$('#btnSim').onclick=()=>alert('Simulación de vida (placeholder)');
+$('#btnSim').onclick=()=>openSimulation();
 
 $$('.views .tab').forEach(b=>b.onclick=()=>{ $$('.views .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.view=b.dataset.v; computePPM(); render(); });
 $$('.floors .tab').forEach(b=>b.onclick=()=>{ $$('.floors .tab').forEach(x=>x.classList.remove('active')); b.classList.add('active'); state.floor=parseInt(b.dataset.f,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); });
 
-/* =========================
-   Undo / Redo
-   ========================= */
+// ---------- Undo/Redo ----------
 function pushHistory(){
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   state.redo.length=0;
@@ -143,21 +140,16 @@ function redo(){ const s=state.redo.pop(); if(!s) return;
   state.history.push(JSON.stringify({items:state.items, shell:state.shell, floor:state.floor, view:state.view}));
   const o=JSON.parse(s); state.items=o.items; state.shell=o.shell; state.floor=o.floor; state.view=o.view; render(); }
 
-/* =========================
-   Assets (backgrounds & módulos)
-   ========================= */
+// ---------- Assets ----------
 const ASSET_ROOT='assets';
 const asset=(p)=>`${ASSET_ROOT}/${p}`;
 function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
 
-// Backgrounds según env: assets/<env>/{top,front,side}.jpg
 async function loadBackgrounds(){
   state.bgImg.top   = await loadImg(asset(`${state.env}/top.jpg`));
   state.bgImg.front = await loadImg(asset(`${state.env}/front.jpg`));
   state.bgImg.side  = await loadImg(asset(`${state.env}/side.jpg`));
 }
-
-// Sprites por módulo en UNA carpeta: assets/modules/<key>_<view>.png
 async function getModuleSprite(key, view){
   const cacheKey = `${key}_${view}`;
   if(state.images.modules[cacheKey]) return state.images.modules[cacheKey];
@@ -167,9 +159,7 @@ async function getModuleSprite(key, view){
 }
 loadBackgrounds();
 
-/* =========================
-   Escala automática
-   ========================= */
+// ---------- Escala ----------
 function computePPM(){
   const M=state.margin;
   let w_m,h_m;
@@ -181,7 +171,6 @@ function computePPM(){
   const sy=(cv.height- M*2)/h_m;
   state.ppm=Math.max(10, Math.floor(Math.min(sx,sy)));
 }
-
 function viewCenter(){
   const R=state.shell.radius, L=state.shell.length;
   if(state.view==='top')   return {x:R, y:L/2};
@@ -189,58 +178,65 @@ function viewCenter(){
   return {x:R, y:R + L/2};
 }
 
-/* =========================
-   Inserción de módulos
-   ========================= */
+// ---------- Inserción módulos ----------
 function insertModule(key,center=true){
   const def=MODULES.find(m=>m.key===key); if(!def) return;
   const sz=Math.max(2, Math.sqrt(def.nhv)||2);
-  const it={id:nextId++, key, name:def.name, floor:state.floor, x:0, y:0, w:sz, h:sz, rot:0, locked:false};
-  if(key==='corr'){ it.w=1.2; it.h=4; }
-  if(key==='stairs'){ it.w=2; it.h=2; it.stairs=true; }
+  const it={
+    id:nextId++, key, name:def.name,
+    floor:state.floor, x:0, y:0, w:sz, h:sz, rot:0, locked:false,
+    geometry: (key==='sleep' ? 'cyl' : 'cube') // por defecto: sueño cilíndrico
+  };
+  if(key==='corr'){ it.w=1.2; it.h=4; it.geometry='rect'; }
+  if(key==='stairs'){ it.w=2; it.h=2; it.geometry='rect'; } // NO se agrega automáticamente nunca
+  if(it.geometry==='cyl'){ const r=sz/2; it.radius=r; it.w=it.h=2*r; }
   if(center){ const c=viewCenter(); it.x=c.x-it.w/2; it.y=c.y-it.h/2; }
   state.items.push(it); state.selId=it.id; pushHistory(); render();
 }
-function ensureStairs(){
-  if(state.shell.floors<=1) return;
-  const has = state.items.some(i=>i.key==='stairs');
-  if(!has){ const c=viewCenter(); state.items.push({id:nextId++, key:'stairs', name:'Escalera', floor:1, x:c.x-1, y:c.y-1, w:2, h:2, rot:0, locked:false, stairs:true}); }
-}
 
-/* =========================
-   Dibujo
-   ========================= */
+// ---------- Dibujo casco + interior gris ----------
 function drawBackground(){
   const k=state.view, img=state.bgImg[k]; if(!img) return;
-  ctx.save(); ctx.globalAlpha=.5;
+  ctx.save(); ctx.globalAlpha=.3; // 70% transparencia
   const rC=cv.width/cv.height, rI=img.width/img.height;
   let w=cv.width,h=cv.height,x=0,y=0;
   if(rI>rC){ h=cv.height; w=h*rI; x=(cv.width-w)/2; } else { w=cv.width; h=w/rI; y=(cv.height-h)/2; }
   ctx.drawImage(img,x,y,w,h); ctx.restore();
 }
-function drawShell(){
+function drawShellInterior(){
   ctx.save();
-  ctx.strokeStyle='rgba(80,120,200,0.9)'; ctx.lineWidth=2;
   const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
+  ctx.fillStyle='rgba(180,190,205,0.18)'; // gris interior
+  ctx.strokeStyle='rgba(80,120,200,0.9)'; ctx.lineWidth=2;
   if(state.view==='top'){
     const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
+    ctx.fillRect(left,top,w,h);
     ctx.strokeRect(left,top,w,h);
   }else if(state.view==='front'){
     const w=R*2, h=R*2, left=cx-R, top=(cv.height-h)/2;
-    ctx.strokeRect(left,top,w,h);
-    const gap=m2p(state.shell.gap); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
-    for(let i=1;i<state.shell.floors;i++){ const y=top+i*gap; if(y<top+h-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(left+w,y); ctx.stroke(); } }
-    ctx.setLineDash([]);
+    ctx.fillRect(left,top,w,h); ctx.strokeRect(left,top,w,h);
+    drawFloorLines(left,top,w,h, m2p(state.shell.gap));
   }else{
     const h=L+R*2, top=(cv.height-h)/2, left=cx-R, right=cx+R;
-    ctx.beginPath(); ctx.arc(cx, top+R, R, Math.PI, 0,false); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(left,top+R); ctx.lineTo(left,top+R+L); ctx.moveTo(right,top+R); ctx.lineTo(right,top+R+L); ctx.stroke();
-    const gap=m2p(state.shell.gap); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
-    for(let i=1;i<state.shell.floors;i++){ const y=top+R+i*gap; if(y<top+R+L-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke(); } }
-    ctx.setLineDash([]);
+    // tapa superior
+    ctx.beginPath(); ctx.moveTo(left,top+R);
+    ctx.arc(cx, top+R, R, Math.PI, 0,false);
+    ctx.lineTo(right, top+R+L); ctx.lineTo(left, top+R+L); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // paredes
+    ctx.beginPath(); ctx.moveTo(left,top+R); ctx.lineTo(left,top+R+L);
+    ctx.moveTo(right,top+R); ctx.lineTo(right,top+R+L); ctx.stroke();
+    drawFloorLines(left,top+R, right-left, L, m2p(state.shell.gap));
   }
   ctx.restore();
 }
+function drawFloorLines(left,top,w,h,gap){
+  ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
+  const n=state.shell.floors;
+  for(let i=1;i<n;i++){ const y=top+i*gap; if(y<top+h-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(left+w,y); ctx.stroke(); } }
+  ctx.setLineDash([]); ctx.restore();
+}
+
 function drawScaleBar(){
   const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
   ctx.save();
@@ -255,33 +251,56 @@ function drawScaleBar(){
 
 function getColor(key){ const m=MODULES.find(x=>x.key===key); return m?m.color:'#4aa3ff'; }
 
-// Dibuja sprite si existe; fallback a rectángulo
+// ---------- Dibujo de módulos ----------
 async function drawModule(it){
   const x=m2p(it.x), y=m2p(it.y), w=m2p(it.w), h=m2p(it.h);
-  const sprite = await getModuleSprite(it.key, state.view); // carga perezosa por vista
+  const sprite = await getModuleSprite(it.key, state.view);
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
 
+  // FONDO gris “piso” del módulo (evita ver el background dentro)
+  ctx.fillStyle='rgba(210,220,230,0.3)';
+  if(state.view==='top' && it.geometry==='cyl'){
+    const r=Math.min(w,h)/2;
+    ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
+  }else{
+    ctx.fillRect(x,y,w,h);
+  }
+
   if(sprite){
-    // Mantener proporción del sprite dentro de w x h
     const rS = sprite.width/sprite.height;
     let dw=w, dh=h;
     if(w/h > rS){ dw = h*rS; } else { dh = w/rS; }
     ctx.globalAlpha = 0.92;
     ctx.drawImage(sprite, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
     ctx.globalAlpha = 1.0;
-    // borde para colisión/selección
-    const col = collides(it) ? 'rgba(239,68,68,0.9)' : 'rgba(74,163,255,0.9)';
-    ctx.strokeStyle = col; ctx.lineWidth = 2;
-    ctx.strokeRect(x,y,w,h);
-  } else {
-    const col = collides(it) ? 'rgba(239,68,68,0.85)' : 'rgba(74,163,255,0.85)';
+  }else{
+    // Fallback vectorial según geometría
     ctx.fillStyle = hex2rgba(getColor(it.key), .85);
-    ctx.strokeStyle = col; ctx.lineWidth=2;
-    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+    if(state.view==='top' && it.geometry==='cyl'){
+      const r=Math.min(w,h)/2;
+      ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
+    }else if(state.view==='top' && it.geometry==='rhomb'){
+      ctx.beginPath();
+      ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.fill();
+    }else{
+      // cube/rect y vistas front/side
+      roundRect(ctx,x,y,w,h,6,true,false);
+    }
   }
 
-  // etiqueta y badge
+  // borde (colisión o normal)
+  const col = collides(it) ? 'rgba(239,68,68,0.9)' : 'rgba(74,163,255,0.9)';
+  ctx.strokeStyle = col; ctx.lineWidth = 2;
+  if(state.view==='top' && it.geometry==='cyl'){
+    const r=Math.min(w,h)/2; ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.stroke();
+  }else if(state.view==='top' && it.geometry==='rhomb'){
+    ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.stroke();
+  }else{
+    ctx.strokeRect(x,y,w,h);
+  }
+
+  // etiqueta y badge de piso (tipo P1)
   ctx.fillStyle='#0b0f17'; ctx.font='12px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
   ctx.fillStyle='rgba(20,40,77,.85)'; ctx.strokeStyle='rgba(41,74,122,.9)'; ctx.lineWidth=1; const bw=34,bh=16;
   ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
@@ -289,41 +308,57 @@ async function drawModule(it){
 
   ctx.restore();
 
-  if(state.selId===it.id) drawHandles(x,y,w,h);
+  if(state.selId===it.id) drawHandles(it,x,y,w,h);
+}
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  if(r>Math.min(w,h)/2) r=Math.min(w,h)/2;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  if(fill) ctx.fill();
+  if(stroke) ctx.stroke();
 }
 
-function drawHandles(x,y,w,h){
+function drawHandles(it,x,y,w,h){
   const hs=7;
   const pts=[[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]];
   ctx.save();
   ctx.fillStyle='#fff';
   pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#0b0f17'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
+  // centro mover
   ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+  // rotar
   ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaf'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+
+  // handle de radio para cilíndricos (Top)
+  if(state.view==='top' && it.geometry==='cyl'){
+    ctx.beginPath(); ctx.arc(x+w, y+h/2, hs, 0, Math.PI*2); ctx.fillStyle='#c4f0ff'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+  }
   ctx.restore();
 }
 
 async function render(){
   ctx.clearRect(0,0,cv.width,cv.height);
-  computePPM(); drawBackground(); drawShell();
+  computePPM(); drawBackground(); drawShellInterior();
   const arr=state.items.filter(i=>i.floor===state.floor);
-  // dibujar en orden
   for(const it of arr) await drawModule(it);
   drawScaleBar(); updateScore();
 }
 
-/* =========================
-   Interacción (select/drag/resize/rotate)
-   ========================= */
+// ---------- Interacción ----------
 function currentSel(){ return state.items.find(i=>i.id===state.selId); }
 function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
 function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
 function getMouseM(ev){ const r=cv.getBoundingClientRect(); const x=(ev.clientX-r.left)*(cv.width/r.width); const y=(ev.clientY-r.top)*(cv.height/r.height); return {x:p2m(x), y:p2m(y)}; }
-function hitHandle(p, box){
-  const hs=7, rad=10; const pts=[[box.x,box.y],[box.x+box.w/2,box.y],[box.x+box.w,box.y],[box.x+box.w,box.y+box.h/2],[box.x+box.w,box.y+box.h],[box.x+box.w/2,box.y+box.h],[box.x,box.y+box.h],[box.x,box.y+box.h/2]];
+function hitHandle(it,p, box){
+  const hs=7, radH=10; const pts=[[box.x,box.y],[box.x+box.w/2,box.y],[box.x+box.w,box.y],[box.x+box.w,box.y+box.h/2],[box.x+box.w,box.y+box.h],[box.x+box.w/2,box.y+box.h],[box.x,box.y+box.h],[box.x,box.y+box.h/2]];
   const X=m2p(p.x), Y=m2p(p.y);
-  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y-18))<=rad) return 'rot';
-  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y+box.h/2))<=rad) return 'move';
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y-18))<=radH) return 'rot';
+  if(Math.hypot(X-(box.x+box.w/2), Y-(box.y+box.h/2))<=radH) return 'move';
+  if(state.view==='top' && it.geometry==='cyl' && Math.hypot(X-(box.x+box.w), Y-(box.y+box.h/2))<=radH) return 'rad';
   for(let i=0;i<pts.length;i++) if(Math.abs(X-pts[i][0])<=hs && Math.abs(Y-pts[i][1])<=hs) return i;
   return null;
 }
@@ -333,16 +368,20 @@ cv.addEventListener('mousedown', (e)=>{
   const pos=getMouseM(e);
   const it = pickItem(pos); state.selId = it? it.id : null; updateProp();
   const sel=currentSel(); if(!sel){ render(); return; }
-  const box=itemBoxPx(sel); const hit=hitHandle(pos, box);
+  const box=itemBoxPx(sel); const hit=hitHandle(sel,pos, box);
   if(hit==='move'){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
   else if(hit==='rot'){ drag={mode:'rot', start:pos}; }
+  else if(hit==='rad'){ drag={mode:'rad', start:pos, startW:sel.w}; }
   else if(typeof hit==='number'){ drag={mode:'res', idx:hit, start:pos, startBox:{x:sel.x,y:sel.y,w:sel.w,h:sel.h}}; }
   else if(pointInBoxPx(pos, box)){ drag={mode:'move',offx:pos.x-sel.x, offy:pos.y-sel.y}; }
 });
-cv.addEventListener('mousemove',(e)=>{
+cv.addEventListener('mousemove', async (e)=>{
   if(!drag) return; const pos=getMouseM(e); const it=currentSel(); if(!it) return;
   if(drag.mode==='move'){ it.x=pos.x-drag.offx; it.y=pos.y-drag.offy; }
   else if(drag.mode==='rot'){ const c={x:it.x+it.w/2,y:it.y+it.h/2}; it.rot = clamp(deg(Math.atan2(pos.y-c.y,pos.x-c.x)), -180,180); }
+  else if(drag.mode==='rad'){
+    let dx = (pos.x - (it.x+it.w/2)); let r = Math.max(0.5, Math.abs(dx)); it.radius=r; it.w=it.h=2*r;
+  }
   else if(drag.mode==='res'){
     const i=drag.idx, sb=drag.startBox, dx=pos.x-drag.start.x, dy=pos.y-drag.start.y; let x=sb.x,y=sb.y,w=sb.w,h=sb.h;
     if(i===0){ x=sb.x+dx; y=sb.y+dy; w=sb.w-dx; h=sb.h-dy; }
@@ -355,8 +394,9 @@ cv.addEventListener('mousemove',(e)=>{
     if(i===7){ x=sb.x+dx; }
     const min= it.key==='corr' ? {w:.8,h:1.0} : {w:1.0,h:1.0};
     it.x=x; it.y=y; it.w=Math.max(min.w,w); it.h=Math.max(min.h,h);
+    if(it.geometry==='cyl'){ const r=Math.min(it.w,it.h)/2; it.radius=r; it.w=it.h=2*r; }
   }
-  render();
+  await render();
 });
 window.addEventListener('mouseup',()=>{ if(drag){ drag=null; pushHistory(); updateScore(); } });
 
@@ -371,16 +411,13 @@ window.addEventListener('keydown',(e)=>{
   if(e.key==='r' || e.key==='R') it.rot = (it.rot+15)%360;
   render(); pushHistory();
 });
-
 function pickItem(p){
   const arr=state.items.filter(i=>i.floor===state.floor);
   for(let i=arr.length-1;i>=0;i--){ const it=arr[i]; if(pointInBoxPx(p, itemBoxPx(it))) return it; }
   return null;
 }
 
-/* =========================
-   Colisiones y score
-   ========================= */
+// ---------- Colisiones ----------
 function collides(A){
   const a={x:A.x,y:A.y,w:A.w,h:A.h,f:A.floor};
   for(const B of state.items){ if(B.id===A.id||B.floor!==A.floor) continue;
@@ -394,33 +431,22 @@ function collides(A){
   return false;
 }
 
-function updateScore(){
-  const needsStairs = state.shell.floors>1;
-  const hasStairs = state.items.some(i=>i.key==='stairs');
-  let base=0.5, vol=0.5, mass=1.0, mult=0.5, fail='—';
-  if(needsStairs && !hasStairs){ base=0; vol=0; mult=0; fail='sin conectividad vertical (falta escalera)'; }
-  let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
-  base = Math.max(0, base - Math.min(1, collisions*0.05));
-  const final = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
-  $('#scColl').textContent=collisions.toFixed(2);
-  $('#scBase').textContent=base.toFixed(2);
-  $('#scVol').textContent=vol.toFixed(2);
-  $('#scMas').textContent=mass.toFixed(2);
-  $('#scMul').textContent=mult.toFixed(2);
-  $('#scFail').textContent=fail;
-  $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
-  $('#scoreFinal').textContent=final.toFixed(1);
-}
-
-/* =========================
-   Propiedades
-   ========================= */
+// ---------- Propiedades panel ----------
 function updateProp(){
   const box=$('#propBox'); const it=currentSel();
   if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
   box.innerHTML=`
     <div class="kv"><div>Nombre</div><input class="ro" value="${it.name}" readonly></div>
     <div class="kv"><div>Piso</div><input id="pFloor" type="number" min="1" max="${state.shell.floors}" value="${it.floor}"></div>
+    <div class="kv"><div>Geometría</div>
+      <select id="pGeom">
+        <option value="cube" ${it.geometry==='cube'?'selected':''}>Cúbica</option>
+        <option value="cyl" ${it.geometry==='cyl'?'selected':''}>Cilíndrica (tapas rectas)</option>
+        <option value="rect" ${it.geometry==='rect'?'selected':''}>Prisma rectangular</option>
+        <option value="rhomb" ${it.geometry==='rhomb'?'selected':''}>Rómbica</option>
+      </select>
+    </div>
+    ${it.geometry==='cyl'?`<div class="kv"><div>Radio (m)</div><input id="pRad" type="number" step="0.1" value="${(it.radius||it.w/2).toFixed(2)}"></div>`:''}
     <div class="kv"><div>X (m)</div><input id="pX" type="number" step="0.1" value="${it.x.toFixed(2)}"></div>
     <div class="kv"><div>Y (m)</div><input id="pY" type="number" step="0.1" value="${it.y.toFixed(2)}"></div>
     <div class="kv"><div>Ancho (m)</div><input id="pW" type="number" step="0.1" value="${it.w.toFixed(2)}"></div>
@@ -428,9 +454,11 @@ function updateProp(){
     <div class="kv"><div>Rotación (°)</div><input id="pR" type="number" step="1" value="${it.rot.toFixed(0)}"></div>
     <div class="kv"><div>Bloqueado</div><input id="pLock" type="checkbox" ${it.locked?'checked':''}></div>
   `;
-  ['pFloor','pX','pY','pW','pH','pR','pLock'].forEach(id=>{
-    document.getElementById(id).onchange=(e)=>{
-      const it=currentSel(); if(!it) return;
+  $('#pGeom').onchange=(e)=>{ it.geometry=e.target.value; if(it.geometry==='cyl'){ const r=Math.min(it.w,it.h)/2; it.radius=r; it.w=it.h=2*r; } updateProp(); render(); pushHistory(); };
+  const ids=['pFloor','pX','pY','pW','pH','pR','pLock','pRad'];
+  ids.forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.onchange=(e)=>{
       if(id==='pFloor') it.floor=clamp(parseInt(e.target.value,10),1,state.shell.floors);
       else if(id==='pLock') it.locked=e.target.checked;
       else if(id==='pR') it.rot=parseFloat(e.target.value||0);
@@ -438,14 +466,85 @@ function updateProp(){
       else if(id==='pY') it.y=parseFloat(e.target.value||it.y);
       else if(id==='pW') it.w=Math.max(0.3,parseFloat(e.target.value||it.w));
       else if(id==='pH') it.h=Math.max(0.3,parseFloat(e.target.value||it.h));
+      else if(id==='pRad'){ const r=Math.max(0.5,parseFloat(e.target.value||1)); it.radius=r; it.w=it.h=2*r; }
       render(); pushHistory(); updateScore();
     };
   });
 }
 
-/* =========================
-   Guía de capacidades
-   ========================= */
+// ---------- Score: diseño + supervivencia ----------
+function updateScore(){
+  // Diseño base
+  let base=0.5, vol=0.5, mass=1.0, mult=0.5;
+  let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
+  base = Math.max(0, base - Math.min(1, collisions*0.05));
+  const design = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
+
+  // Supervivencia (0..1) por coberturas mínimas
+  const surv = computeSurvivalFactor();
+
+  const final = +(design * surv).toFixed(1);
+  $('#scColl').textContent=collisions.toFixed(2);
+  $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
+  $('#scoreDesign').textContent=design.toFixed(1);
+  $('#scoreSurv').textContent=surv.toFixed(2);
+  $('#scoreFinal').textContent=final.toFixed(1);
+}
+
+function computeSurvivalFactor(){
+  const N=state.crewN;
+  const counts = key=> state.items.filter(i=>i.key===key).length;
+  const needs = [
+    ['sleep','Sueño'],
+    ['hygiene','Higiene'],
+    ['galley','Alimentación'],
+    ['eclss','ECLSS'],
+    ['airlock','Airlock']
+  ].map(([k,lab])=>{
+    const cap = CAP_DEFAULTS[k]||Infinity;
+    const req = cap===0?0: Math.ceil(N/cap);
+    const have = counts(k);
+    const ok = req===0?1:(have/req);
+    return {key:k,label:lab,req,have,ok:Math.min(1,ok)};
+  });
+  // mínimo de coberturas (capado a 1)
+  const surv = needs.reduce((m,n)=>Math.min(m,n.ok),1);
+  computeSurvivalFactor._lastNeeds=needs;
+  return surv;
+}
+
+// ---------- Simulación (modal con métricas y sugerencias) ----------
+function openSimulation(){
+  const needs = computeSurvivalFactor._lastNeeds || (computeSurvivalFactor(), computeSurvivalFactor._lastNeeds);
+  const days = needs.some(n=>n.ok<1) ? 0 : 30; // placeholder simple
+  const sugg = needs.filter(n=>n.ok<1).map(n=>`Falta ${n.req-n.have} × ${n.label} (req=${n.req} para N=${state.crewN})`);
+  const okList = needs.filter(n=>n.ok>=1).map(n=>`✔ ${n.label}: OK (${n.have}/${n.req})`);
+  const html = `
+    <div class="sim-grid">
+      <div class="callout">
+        <div class="kpi"><b>Días estimados:</b> ${days}</div>
+        <div><b>Supervivencia (0–1):</b> ${computeSurvivalFactor().toFixed(2)}</div>
+        <div><b>N tripulantes:</b> ${state.crewN}</div>
+      </div>
+      <div class="callout">
+        <b>Estado por función</b>
+        <ul>
+          ${needs.map(n=>`<li class="${n.ok<1?'bad':'good'}">${n.label}: ${n.have}/${n.req}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="callout" style="grid-column:1/3">
+        <b>Sugerencias</b>
+        <ul>
+          ${sugg.length? sugg.map(s=>`<li>${s}</li>`).join('') : '<li>Todo cubierto para misión corta (30 días).</li>'}
+        </ul>
+      </div>
+    </div>`;
+  $('#simContent').innerHTML=html;
+  $('#simModal').classList.add('show');
+}
+$('#closeSim').onclick=()=>$('#simModal').classList.remove('show');
+
+// ---------- Guía de capacidades ----------
 $('#btnGuide').onclick=()=>{ mountCapTable(); $('#guideModal').classList.add('show'); };
 $('#closeGuide').onclick=()=>$('#guideModal').classList.remove('show');
 $$('.tap').forEach(b=>b.onclick=()=>{
@@ -490,17 +589,10 @@ $('#btnApplyCaps').onclick=()=>{
   $('#guideModal').classList.remove('show'); render();
 };
 
-/* =========================
-   Boot
-   ========================= */
-function drawScaleBar(){ const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
-  ctx.save(); ctx.strokeStyle='#ddd'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+pxLen,y0); ctx.stroke();
-  for(let i=0;i<=base_m;i++){ const x=x0+m2p(i), h=(i%5===0)?10:6; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0-h); ctx.stroke(); }
-  ctx.fillStyle='#ddd'; ctx.font='12px system-ui';
-  ctx.fillText(`${base_m} m`, x0+pxLen+6, y0+4);
-  ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
-  ctx.restore();
+// ---------- Boot ----------
+function drawAll(){
+  drawBackground(); drawShellInterior();
 }
-function boot(){ ensureStairs(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
+function drawScaleBarWrapper(){ drawScaleBar(); }
+function boot(){ computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
