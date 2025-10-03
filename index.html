@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Your Home in Space — V1.3.2</title>
+  <title>Your Home in Space — V1.4.0</title>
   <link rel="icon" href="./favicon.ico.png">
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
 <header>
-  <div class="title">Your Home in Space — <span class="pill">V1.3.2</span></div>
+  <div class="title">Your Home in Space — <span class="pill">V1.4.0</span></div>
   <div class="sep"></div>
   <label>Entorno:
     <select id="envSel">
@@ -50,11 +50,12 @@
   <main class="canvas-wrap panel">
     <div class="rowbar">
       <div class="tabs views">
-        <label>Vista:
+        <label>Modo de cámara:
           <select id="viewSel">
-            <option value="top">Vista Superior — Plano XY</option>
-            <option value="front">Vista Frontal — Plano XZ</option>
-            <option value="side">Vista Lateral — Plano YZ</option>
+            <option value="orbital">Orbital libre</option>
+            <option value="top">Anclada — Zenith</option>
+            <option value="front">Anclada — Frontal</option>
+            <option value="side">Anclada — Lateral</option>
           </select>
         </label>
       </div>
@@ -64,9 +65,9 @@
         </label>
       </div>
     </div>
-    <canvas id="cv" width="1280" height="640"></canvas>
+    <div id="viewport3d"></div>
     <div id="floorBadge" class="pill badge">Piso activo: 1</div>
-    <div class="kbd">Atajos: Flechas= mover 0.1 m (Shift=1 m) · R=rotar 15° · Supr=eliminar</div>
+    <div class="kbd">Atajos 3D: Arrastrá con el mouse para orbitar · Shift + arrastre = paneo · Rueda = zoom · R = mover/rotar · Supr = eliminar módulo seleccionado</div>
   </main>
 
   <!-- Derecha -->
@@ -143,6 +144,6 @@
   </div>
 </div>
 
-<script defer src="./app.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
