@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -11,133 +11,134 @@
 <header>
   <div class="title">Your Home in Space — <span class="pill">V1.3.2</span></div>
   <div class="sep"></div>
-  <label>Entorno:
+  <label>Environment:
     <select id="envSel">
       <option value="moon">Moon</option>
       <option value="mars">Mars</option>
     </select>
   </label>
-  <label>Tripulación (N):
-    <input id="crewN" type="number" min="1" max="24" value="2" style="width:72px">
+  <label>Crew:
+    <select id="crewSel">
+      <option>1</option><option selected>2</option><option>3</option><option>4</option>
+      <option>5</option><option>6</option><option>7</option><option>8</option>
+    </select>
   </label>
-  <button id="btnGuide">Guía (módulos)</button>
-  <button id="btnUndo">Deshacer</button>
-  <button id="btnRedo">Rehacer</button>
-  <button id="btnReset">Reiniciar Layout</button>
-  <button id="btnSim" class="warn">Simular Vida</button>
-  <button id="btnSave">Guardar (JSON)</button>
+  <button id="btnGuide">Module Guide</button>
+  <button id="btnUndo">Undo</button>
+  <button id="btnRedo">Redo</button>
+  <button id="btnReset">Reset Layout</button>
+  <button id="btnSim" class="warn">Simulate Life</button>
+  <button id="btnSave">Save (JSON)</button>
   <input id="loadFile" type="file" accept=".json" hidden>
-  <button id="btnLoad">Cargar (JSON)</button>
+  <button id="btnLoad">Load (JSON)</button>
 </header>
 
 <div class="wrap">
-  <!-- Izquierda -->
+  <!-- Left -->
   <aside class="panel modules">
-    <h3>Módulos</h3>
-    <div class="hint">Click para insertar (se centra en vista/piso activo)</div>
+    <h3>Modules</h3>
+    <div class="hint">Click to insert (centered on active view/floor)</div>
     <div id="modList"></div>
     <hr />
-    <h3>Cascarón</h3>
-    <div class="hintSmall">Geometría: <b>Cilindro + tapas hemisféricas</b></div>
-    <div class="kv"><div>Radio (m)</div><input id="inpR" type="number" value="5" step="0.1"></div>
-    <div class="kv"><div>Longitud cil. (m)</div><input id="inpL" type="number" value="12" step="0.1"></div>
-    <div class="kv"><div>Pisos (N)</div><input id="inpFloors" type="number" value="3" min="1" max="8"></div>
-    <div class="kv"><div>Separación entre pisos (m)</div><input id="inpGap" type="number" value="2.5" step="0.1"></div>
-    <button id="btnShellApply" class="btn">Aplicar</button>
+    <h3>Shell</h3>
+    <div class="hintSmall">Geometry: <b>Cylinder + hemispherical caps</b></div>
+    <div class="kv"><div>Radius (m)</div><input id="inpR" type="number" value="5" step="0.1"></div>
+    <div class="kv"><div>Cyl. length (m)</div><input id="inpL" type="number" value="12" step="0.1"></div>
+    <div class="kv"><div>Floors (N)</div><input id="inpFloors" type="number" value="3" min="1" max="8"></div>
+    <div class="kv"><div>Inter-floor gap (m)</div><input id="inpGap" type="number" value="2.5" step="0.1"></div>
+    <button id="btnShellApply" class="btn">Apply</button>
   </aside>
 
-  <!-- Centro -->
+  <!-- Center -->
   <main class="canvas-wrap panel">
     <div class="rowbar">
       <div class="tabs views">
-        <label>Vista:
+        <label>View:
           <select id="viewSel">
-            <option value="top">Vista Superior — Plano XY</option>
-            <option value="front">Vista Frontal — Plano XZ</option>
-            <option value="side">Vista Lateral — Plano YZ</option>
+            <option value="top">Top — XY Plane</option>
+            <option value="front">Front — XZ Plane</option>
+            <option value="side">Side — YZ Plane</option>
           </select>
         </label>
       </div>
       <div class="tabs floors">
-        <label>Piso:
+        <label>Floor:
           <select id="floorSel"></select>
         </label>
       </div>
     </div>
     <canvas id="cv" width="1280" height="640"></canvas>
-    <div id="floorBadge" class="pill badge">Piso activo: 1</div>
-    <div class="kbd">Atajos: Flechas= mover 0.1 m (Shift=1 m) · R=rotar 15° · Supr=eliminar</div>
+    <div id="floorBadge" class="pill badge">Active floor: 1</div>
+    <div class="kbd">Shortcuts: Arrows=move 0.1 m (Shift=1 m) · R=rotate 15° · Del=delete</div>
   </main>
 
-  <!-- Derecha -->
+  <!-- Right -->
   <aside class="panel props">
-    <h3>Propiedades</h3>
-    <div id="propBox"><div class="hint">Seleccioná un módulo…</div></div>
+    <h3>Properties</h3>
+    <div id="propBox"><div class="hint">Select a module…</div></div>
 
     <div class="score">
-      <div><b>Score & Estado</b></div>
+      <div><b>Score & Status</b></div>
       <div id="scoreBox">
-        <div>Colisiones: <span id="scColl">0.00</span></div>
-        <div>Adyacencias: <span id="scAdj">1.00</span></div>
-        <div>NHV eficiencia: —</div>
-        <div>Masa total (kg): <span id="scMass">0</span></div>
-        <div class="mt"><b>Diseño (0–100):</b> <span id="scoreDesign">0.0</span></div>
-        <div>Supervivencia (0–1): <span id="scoreSurv">0.00</span></div>
-        <div class="mt"><b>Score efectivo:</b> <span id="scoreFinal">0.0</span></div>
+        <div>Collisions: <span id="scColl">0.00</span></div>
+        <div>Adjacency: <span id="scAdj">1.00</span></div>
+        <div>NHV efficiency: —</div>
+        <div>Total mass (kg): <span id="scMass">0</span></div>
+        <div class="mt"><b>Design (0–100):</b> <span id="scoreDesign">0.0</span></div>
+        <div>Survival (0–1): <span id="scoreSurv">0.00</span></div>
+        <div class="mt"><b>Effective score:</b> <span id="scoreFinal">0.0</span></div>
       </div>
-      <button id="btnScoreDetail" class="btn secondary mt">Ver detalle de cálculo</button>
+      <button id="btnScoreDetail" class="btn secondary mt">Show calc detail</button>
     </div>
   </aside>
 </div>
 
-<!-- Modal Guía -->
+<!-- Guide Modal -->
 <div id="guideModal" class="modal" aria-hidden="true">
   <div class="card">
     <div class="cardhead">
-      <h2>Guía de dimensionamiento y supervivencia</h2>
-      <button id="closeGuide" class="btn secondary">Cerrar ✕</button>
+      <h2>Sizing & Survival Guide</h2>
+      <button id="closeGuide" class="btn secondary">Close ✕</button>
     </div>
     <div class="taps">
-      <button data-t="a" class="tap">A) Guía</button>
-      <button data-t="b" class="tap active">B) Tabla de referencia</button>
-      <button data-t="c" class="tap">C) Fuentes</button>
+      <button data-t="a" class="tap">A) Guide</button>
+      <button data-t="b" class="tap active">B) Reference table</button>
+      <button data-t="c" class="tap">C) Sources</button>
     </div>
     <div id="tabA" style="display:none">
-      <p>Capacidades nominales precargadas por módulo (tripulantes por módulo). Con el valor <b>N</b> de tripulación se calcula la recomendación mínima. Podés editar y aplicar.</p>
+      <p>Nominal capacities per module (crew per module). With crew size <b>N</b> the minimum recommendation is computed. You can edit and apply.</p>
     </div>
     <div id="tabB">
       <table id="capTable">
         <thead>
           <tr>
-            <th>Módulo (app)</th>
-            <th>Parámetro base</th>
-            <th>Capacidad nominal<br><small>(N tripulantes por módulo)</small></th>
-            <th>Recomendación<br><small>para N=<span id="capN">2</span></small></th>
-            <th>Influencia</th>
-            <th>Regla orientativa</th>
+            <th>Module (app)</th>
+            <th>Base parameter</th>
+            <th>Nominal capacity<br><small>(crew per module)</small></th>
+            <th>Recommendation<br><small>for N=<span id="capN">2</span></small></th>
+            <th>Influence</th>
+            <th>Rule of thumb</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
       <div class="rowbtn">
-        <button id="btnApplyCaps" class="btn ok">Aplicar recomendaciones</button>
-        <button id="btnResetCaps" class="btn secondary">Restablecer capacidades</button>
+        <button id="btnApplyCaps" class="btn ok">Apply recommendations</button>
+        <button id="btnResetCaps" class="btn secondary">Reset capacities</button>
       </div>
     </div>
     <div id="tabC" style="display:none">
-      <ul>
-        <li>Valores orientativos extraídos de documentación NASA para layouts/funciones de hábitat (SH/TH/PCM).</li>
-      </ul>
+      <ul><li>Indicative values based on NASA docs for habitat layouts/functions (SH/TH/PCM).</li></ul>
     </div>
   </div>
 </div>
 
-<!-- Modal Simulación -->
+<!-- Simulation Modal -->
 <div id="simModal" class="modal" aria-hidden="true">
   <div class="card">
     <div class="cardhead">
-      <h2>Simulación de vida — Métricas</h2>
-      <button id="closeSim" class="btn secondary">Cerrar ✕</button>
+      <h2>Life Simulation — Metrics</h2>
+      <button id="closeSim" class="btn secondary">Close ✕</button>
     </div>
     <div id="simContent"></div>
   </div>
