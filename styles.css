@@ -1,12 +1,11 @@
 :root{
-  /* Higher contrast */
   --bg:#070c14; --ink:#0a1728; --ui:#0c1d34; --fg:#f4f8ff; --mut:#b9c7de; --acc:#63b3ff;
   --ok:#31c48d; --warn:#f59e0b; --err:#ef4444;
 }
 *{box-sizing:border-box}
 body{
   margin:0;background:var(--bg);color:var(--fg);
-  /* +10% font size (before 14px) */
+  /* +10% font size (base ≈ 15.4px) */
   font:15.4px/1.38 system-ui,Segoe UI,Roboto,Arial
 }
 
@@ -77,3 +76,4 @@ th{background:#133054;color:#d7e9ff;position:sticky;top:0}
 .bad{color:#ffb4b4}
 .good{color:#9ff3c5}
 .kpi{font-size:1.02em}
+
