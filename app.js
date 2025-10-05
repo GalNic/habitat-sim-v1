@@ -1,4 +1,4 @@
-// Your Home in Space — V1.3.2 with configurable background scale/offset per env & view
+// Your Home in Space — V1.3.2 (EN) with background scale/offset/anchor per env & view
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -177,9 +177,9 @@ const asset=(p)=>`${ASSET_ROOT}/${p}`;
 
 // --- Background config (per environment & view) -----------------------------
 // scale: 1 = base; >1 zoom in; <1 zoom out
-// offsetX/offsetY: desplazamiento en px (derecha/abajo positivo)
-// mode: 'cover' (rellena sin bordes) | 'contain' (entra completa)
-// anchorX/anchorY: punto de anclaje del zoom (0=izq/arriba, 0.5=centro, 1=der/abajo)
+// offsetX/offsetY: shift in px (right/down positive)
+// mode: 'cover' | 'contain'
+// anchorX/anchorY: zoom anchor (0=left/top, 0.5=center, 1=right/bottom)
 const BG_CONF = {
   moon: {
     top:   { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
@@ -244,41 +244,47 @@ function insertModule(key,center=true){
 
 // ---------- Draw shell + interior ----------
 function drawBackground(){
-  const k = state.view;
-  const img = state.bgImg[k];
+  const view = state.view;
+  const img = state.bgImg[view];
   if (!img) return;
 
-  const conf = (BG_CONF[state.env] && BG_CONF[state.env][k]) || {};
+  const conf = (BG_CONF[state.env] && BG_CONF[state.env][view]) || {};
   const mode    = conf.mode    || 'cover';
-  const scale   = conf.scale   ?? 1.0;
-  const offsetX = conf.offsetX ?? 0;
-  const offsetY = conf.offsetY ?? 0;
+  const scale   = (conf.scale   ?? 1.0);
+  const offsetX = (conf.offsetX ?? 0);
+  const offsetY = (conf.offsetY ?? 0);
+  const anchorX = (conf.anchorX ?? 0.5);
+  const anchorY = (conf.anchorY ?? 0.5);
 
   const rC = cv.width / cv.height;
   const rI = img.width / img.height;
 
-  let w, h, x = 0, y = 0;
-
+  // base box segun modo
+  let w, h, x, y;
   if (mode === 'contain') {
-    if (rI > rC) { w = cv.width; h = w / rI; y = (cv.height - h) / 2; }
-    else { h = cv.height; w = h * rI; x = (cv.width - w) / 2; }
-  } else {
-    if (rI > rC) { h = cv.height; w = h * rI; x = (cv.width - w) / 2; }
-    else { w = cv.width; h = w / rI; y = (cv.height - h) / 2; }
+    if (rI > rC) { w = cv.width; h = w / rI; x = 0; y = (cv.height - h) / 2; }
+    else         { h = cv.height; w = h * rI; x = (cv.width - w) / 2; y = 0; }
+  } else { // cover
+    if (rI > rC) { h = cv.height; w = h * rI; x = (cv.width - w) / 2; y = 0; }
+    else         { w = cv.width; h = w / rI; x = 0; y = (cv.height - h) / 2; }
   }
 
-  w *= scale; h *= scale; x += offsetX; y += offsetY;
+  // zoom con anclaje
+  const w2 = w * scale;
+  const h2 = h * scale;
+  const x2 = x - (w2 - w) * anchorX + offsetX;
+  const y2 = y - (h2 - h) * anchorY + offsetY;
 
   ctx.save();
-  ctx.globalAlpha = 1.0; // opaque
-  ctx.drawImage(img, x, y, w, h);
+  ctx.globalAlpha = 1.0;
+  ctx.drawImage(img, x2, y2, w2, h2);
   ctx.restore();
 }
 
 function drawShellInterior(){
   ctx.save();
   const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
-  ctx.fillStyle='rgba(180,190,205,0.21)'; // subtle inner fill
+  ctx.fillStyle='rgba(180,190,205,0.21)';
   ctx.strokeStyle='rgba(98,150,230,0.95)'; ctx.lineWidth=2;
   if(state.view==='top'){
     const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
@@ -328,7 +334,6 @@ async function drawModule(it){
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
 
-  // No gray fill for SLEEP; keep for others
   if(!(it.key==='sleep')){
     ctx.fillStyle='rgba(210,220,230,0.30)';
     ctx.fillRect(x,y,w,h);
@@ -545,7 +550,7 @@ function computeSurvivalFactor(){
 // ---------- Simulation ----------
 function openSimulation(){
   const needs = computeSurvivalFactor._lastNeeds || (computeSurvivalFactor(), computeSurvivalFactor._lastNeeds);
-  const days = needs.some(n=>n.ok<1) ? 0 : 30; // simple placeholder
+  const days = needs.some(n=>n.ok<1) ? 0 : 30;
   const sugg = needs.filter(n=>n.ok<1).map(n=>`Add ${n.req-n.have} × ${n.label} (req=${n.req} for N=${state.crewN})`);
   const html = `
     <div class="sim-grid">
@@ -560,7 +565,7 @@ function openSimulation(){
           ${needs.map(n=>`<li class="${n.ok<1?'bad':'good'}">${n.label}: ${n.have}/${n.req}</li>`).join('')}
         </ul>
       </div>
-      <div class="callout" style="grid-column:1/3">
+      <div class="callout" style="grid-column:1/2 / span 2">
         <b>Suggestions</b>
         <ul>
           ${sugg.length? sugg.map(s=>`<li>${s}</li>`).join('') : '<li>All covered for a short mission (30 days).</li>'}
@@ -620,9 +625,3 @@ $('#btnApplyCaps').onclick=()=>{
 // ---------- Boot ----------
 function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
-
-
-
-
-
-
