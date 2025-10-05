@@ -181,14 +181,14 @@ const asset=(p)=>`${ASSET_ROOT}/${p}`;
 // mode: 'cover' | 'contain'
 const BG_CONF = {
   moon: {
-    top:   { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
-    front: { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
-    side:  { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    top:   { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
+    front: { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
+    side:  { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
   },
   mars: {
-    top:   { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
-    front: { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
-    side:  { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    top:   { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
+    front: { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
+    side:  { scale: 1.10, offsetX: 0, offsetY: 0, mode: 'cover' },
   }
 };
 
@@ -619,4 +619,5 @@ $('#btnApplyCaps').onclick=()=>{
 // ---------- Boot ----------
 function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
+
 
