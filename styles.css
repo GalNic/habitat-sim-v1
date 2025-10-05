@@ -5,7 +5,6 @@
 *{box-sizing:border-box}
 body{
   margin:0;background:var(--bg);color:var(--fg);
-  /* +10% font size (base ≈ 15.4px) */
   font:15.4px/1.38 system-ui,Segoe UI,Roboto,Arial
 }
 
