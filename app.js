@@ -177,18 +177,19 @@ const asset=(p)=>`${ASSET_ROOT}/${p}`;
 
 // --- Background config (per environment & view) -----------------------------
 // scale: 1 = base; >1 zoom in; <1 zoom out
-// offsetX/offsetY: shift in pixels (right/down positive)
-// mode: 'cover' | 'contain'
+// offsetX/offsetY: desplazamiento en px (derecha/abajo positivo)
+// mode: 'cover' (rellena sin bordes) | 'contain' (entra completa)
+// anchorX/anchorY: punto de anclaje del zoom (0=izq/arriba, 0.5=centro, 1=der/abajo)
 const BG_CONF = {
   moon: {
-    top:   { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
-    front: { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
-    side:  { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
+    top:   { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    front: { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    side:  { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
   },
   mars: {
-    top:   { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
-    front: { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
-    side:  { scale: 0.70, offsetX: 0, offsetY: 0, mode: 'cover' },
+    top:   { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    front: { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    side:  { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
   }
 };
 
@@ -619,6 +620,7 @@ $('#btnApplyCaps').onclick=()=>{
 // ---------- Boot ----------
 function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
+
 
 
 
