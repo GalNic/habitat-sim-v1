@@ -1,4 +1,4 @@
-// Your Home in Space — V1.3.2 (EN UI). Envs: moon/mars. Sprites: assets/modules/<key>_<view>.png
+// Your Home in Space — V1.3.2 with configurable background scale/offset per env & view
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -174,6 +174,24 @@ function redo(){ const s=state.redo.pop(); if(!s) return;
 // ---------- Assets ----------
 const ASSET_ROOT='assets';
 const asset=(p)=>`${ASSET_ROOT}/${p}`;
+
+// --- Background config (per environment & view) -----------------------------
+// scale: 1 = base; >1 zoom in; <1 zoom out
+// offsetX/offsetY: shift in pixels (right/down positive)
+// mode: 'cover' | 'contain'
+const BG_CONF = {
+  moon: {
+    top:   { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    front: { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    side:  { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+  },
+  mars: {
+    top:   { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    front: { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+    side:  { scale: 1.00, offsetX: 0, offsetY: 0, mode: 'cover' },
+  }
+};
+
 function loadImg(src){ return new Promise(res=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=src; }); }
 async function loadBackgrounds(){
   state.bgImg.top   = await loadImg(asset(`${state.env}/top.jpg`));
@@ -225,17 +243,41 @@ function insertModule(key,center=true){
 
 // ---------- Draw shell + interior ----------
 function drawBackground(){
-  const k=state.view, img=state.bgImg[k]; if(!img) return;
-  ctx.save(); ctx.globalAlpha=1.0; // no transparency now
-  const rC=cv.width/cv.height, rI=img.width/img.height;
-  let w=cv.width,h=cv.height,x=0,y=0;
-  if(rI>rC){ h=cv.height; w=h*rI; x=(cv.width-w)/2; } else { w=cv.width; h=w/rI; y=(cv.height-h)/2; }
-  ctx.drawImage(img,x,y,w,h); ctx.restore();
+  const k = state.view;
+  const img = state.bgImg[k];
+  if (!img) return;
+
+  const conf = (BG_CONF[state.env] && BG_CONF[state.env][k]) || {};
+  const mode    = conf.mode    || 'cover';
+  const scale   = conf.scale   ?? 1.0;
+  const offsetX = conf.offsetX ?? 0;
+  const offsetY = conf.offsetY ?? 0;
+
+  const rC = cv.width / cv.height;
+  const rI = img.width / img.height;
+
+  let w, h, x = 0, y = 0;
+
+  if (mode === 'contain') {
+    if (rI > rC) { w = cv.width; h = w / rI; y = (cv.height - h) / 2; }
+    else { h = cv.height; w = h * rI; x = (cv.width - w) / 2; }
+  } else {
+    if (rI > rC) { h = cv.height; w = h * rI; x = (cv.width - w) / 2; }
+    else { w = cv.width; h = w / rI; y = (cv.height - h) / 2; }
+  }
+
+  w *= scale; h *= scale; x += offsetX; y += offsetY;
+
+  ctx.save();
+  ctx.globalAlpha = 1.0; // opaque
+  ctx.drawImage(img, x, y, w, h);
+  ctx.restore();
 }
+
 function drawShellInterior(){
   ctx.save();
   const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
-  ctx.fillStyle='rgba(180,190,205,0.21)'; // keep subtle inner volume
+  ctx.fillStyle='rgba(180,190,205,0.21)'; // subtle inner fill
   ctx.strokeStyle='rgba(98,150,230,0.95)'; ctx.lineWidth=2;
   if(state.view==='top'){
     const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
@@ -285,7 +327,7 @@ async function drawModule(it){
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
 
-  // Module "floor" gray: removed for SLEEP (as requested). Kept for others.
+  // No gray fill for SLEEP; keep for others
   if(!(it.key==='sleep')){
     ctx.fillStyle='rgba(210,220,230,0.30)';
     ctx.fillRect(x,y,w,h);
@@ -300,7 +342,6 @@ async function drawModule(it){
     ctx.globalAlpha = 1.0;
   }else{
     ctx.fillStyle = hex2rgba(getColor(it.key), .9);
-    // Sleep: circle on TOP, rectangle on FRONT/SIDE
     if(state.view==='top' && it.key==='sleep'){
       const r=Math.min(w,h)/2;
       ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
@@ -311,7 +352,6 @@ async function drawModule(it){
     }
   }
 
-  // outline
   const col = collides(it) ? 'rgba(239,68,68,0.95)' : 'rgba(102,176,255,0.95)';
   ctx.strokeStyle = col; ctx.lineWidth = 2;
   if(state.view==='top' && it.key==='sleep'){
@@ -322,7 +362,6 @@ async function drawModule(it){
     ctx.strokeRect(x,y,w,h);
   }
 
-  // label + floor badge
   ctx.fillStyle='#07111e'; ctx.font='12.5px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
   ctx.fillStyle='rgba(18,36,72,.9)'; ctx.strokeStyle='rgba(55,96,155,.95)'; ctx.lineWidth=1;
   const bw=34,bh=16; ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
@@ -580,3 +619,4 @@ $('#btnApplyCaps').onclick=()=>{
 // ---------- Boot ----------
 function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
+
