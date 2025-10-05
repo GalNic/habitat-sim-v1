@@ -1,4 +1,4 @@
-// Your Home in Space — V1.3.2 (moon/mars; sprites módulos en assets/modules/<clave>_<vista>.png)
+// Your Home in Space — V1.3.2 (EN UI). Envs: moon/mars. Sprites: assets/modules/<key>_<view>.png
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -19,35 +19,35 @@ const state = {
   history: [], redo: []
 };
 
-// ---------- Catálogo ----------
+// ---------- Catalog ----------
 const MODULES = [
-  {key:'sleep',   name:'Sueño (crew quarters)', nhv:4,  mass:100, color:'#6aa7ff'},
-  {key:'hygiene', name:'Higiene + UWMS',        nhv:6,  mass:180, color:'#6ed4ff'},
-  {key:'galley',  name:'Galley + Mesa común',   nhv:8,  mass:160, color:'#62e6b9'},
-  {key:'ops',     name:'Trabajo / Comando crítico', nhv:6, mass:150, color:'#8cf0a7'},
-  {key:'med',     name:'Médico',                nhv:5,  mass:140, color:'#ffd166'},
-  {key:'ex',      name:'Ejercicio',             nhv:10, mass:200, color:'#f6a4ff'},
-  {key:'store',   name:'Estiba (Storage)',      nhv:12, mass:120, color:'#c3dafe'},
+  {key:'sleep',   name:'Sleep (crew quarters)', nhv:4,  mass:100, color:'#6aa7ff'},
+  {key:'hygiene', name:'Hygiene + UWMS',        nhv:6,  mass:180, color:'#6ed4ff'},
+  {key:'galley',  name:'Galley + Commons',      nhv:8,  mass:160, color:'#62e6b9'},
+  {key:'ops',     name:'Ops / Critical Command',nhv:6,  mass:150, color:'#8cf0a7'},
+  {key:'med',     name:'Medical',               nhv:5,  mass:140, color:'#ffd166'},
+  {key:'ex',      name:'Exercise',              nhv:10, mass:200, color:'#f6a4ff'},
+  {key:'store',   name:'Storage',               nhv:12, mass:120, color:'#c3dafe'},
   {key:'eclss',   name:'ECLSS (Life Support)',  nhv:15, mass:300, color:'#fff1a8'},
   {key:'airlock', name:'Airlock',               nhv:7,  mass:220, color:'#ffa3a3'},
-  {key:'stairs',  name:'Escalera',              nhv:0,  mass:50,  color:'#a3ffd1', sys:true},
-  {key:'corr',    name:'Pasillo',               nhv:0,  mass:10,  color:'#9aa8ff', sys:true}
+  {key:'stairs',  name:'Stairs',                nhv:0,  mass:50,  color:'#a3ffd1', sys:true},
+  {key:'corr',    name:'Corridor',              nhv:0,  mass:10,  color:'#9aa8ff', sys:true}
 ];
 
-// capacidad nominal (N tripulantes por módulo)
+// nominal capacity (crew per module)
 const CAP_DEFAULTS = {
   sleep: 1, hygiene: 3, galley: 4, ops: 4, med: 6, ex: 3, store: 4, eclss: 4, airlock: 4
 };
 const CAP_INFO = {
-  sleep:{base:'min. recomendado NASA',infl:'NHV, Riesgo bajo, Energía baja',rule:'1 módulo por tripulante (ajust.)'},
-  hygiene:{base:'min. recomendado NASA',infl:'H2O, Riesgo, NHV',rule:'1 módulo cada ~3 trip.'},
-  galley:{base:'min. recomendado NASA',infl:'Energía, NHV',rule:'1 módulo cada ~4 trip.'},
-  ops:{base:'min. recomendado NASA',infl:'Energía, Riesgo',rule:'1 módulo cada ~4 trip.'},
-  med:{base:'min. recomendado NASA',infl:'Riesgo, NHV',rule:'1 módulo cada ~6 trip.'},
-  ex:{base:'min. recomendado NASA',infl:'Energía, NHV, Riesgo',rule:'1 módulo cada ~3 trip.'},
-  store:{base:'min. recomendado NASA',infl:'Masa, NHV',rule:'Depende de duración; base 1 c/4 trip.'},
-  eclss:{base:'min. recomendado NASA',infl:'O2, H2O, CO2, Energía',rule:'1 módulo c/ ~4 trip.'},
-  airlock:{base:'min. recomendado NASA',infl:'Riesgo, Energía',rule:'1 módulo cada ~4 trip.'}
+  sleep:{base:'NASA min. recommended',infl:'NHV, Low risk, Low energy',rule:'1 module per crewmember (adjustable)'},
+  hygiene:{base:'NASA min. recommended',infl:'H2O, Risk, NHV',rule:'~1 module per 3 crew'},
+  galley:{base:'NASA min. recommended',infl:'Energy, NHV',rule:'~1 module per 4 crew'},
+  ops:{base:'NASA min. recommended',infl:'Energy, Risk',rule:'~1 module per 4 crew'},
+  med:{base:'NASA min. recommended',infl:'Risk, NHV',rule:'~1 module per 6 crew'},
+  ex:{base:'NASA min. recommended',infl:'Energy, NHV, Risk',rule:'~1 module per 3 crew'},
+  store:{base:'NASA min. recommended',infl:'Mass, NHV',rule:'duration-dependent; base 1/4 crew'},
+  eclss:{base:'NASA min. recommended',infl:'O2, H2O, CO2, Energy',rule:'~1 module per 4 crew'},
+  airlock:{base:'NASA min. recommended',infl:'Risk, Energy',rule:'~1 module per 4 crew'}
 };
 
 // ---------- Helpers ----------
@@ -69,7 +69,7 @@ function mountModuleList(){
     const row=document.createElement('div');
     row.className='item';
     row.dataset.key=m.key;
-    row.innerHTML=`<span>${m.name} <small style="opacity:.7">(NHV_ref ${m.nhv} m²)</small></span><span></span>`;
+    row.innerHTML=`<span>${m.name} <small style="opacity:.75">(NHV_ref ${m.nhv} m²)</small></span><span></span>`;
     row.onclick=()=>insertModule(m.key,true);
     list.appendChild(row);
   });
@@ -90,9 +90,9 @@ function rebuildFloorOptions(){
   for(let i=1;i<=state.shell.floors;i++){
     const o=document.createElement('option'); o.value=i; o.textContent=i; sel.appendChild(o);
   }
-  sel.value = Math.min(cur, state.shell.floors);
+  sel.value = String(Math.min(cur, state.shell.floors));
   state.floor = parseInt(sel.value,10);
-  $('#floorBadge').textContent=`Piso activo: ${state.floor}`;
+  $('#floorBadge').textContent=`Active floor: ${state.floor}`;
 }
 rebuildFloorOptions();
 
@@ -109,7 +109,7 @@ rebuildFloorOptions();
 $('#btnShellApply').onclick=()=>{ rebuildFloorOptions(); computePPM(); render(); };
 
 $('#btnReset').onclick=()=>{
-  if(!confirm('¿Seguro que deseas volver a comenzar?')) return;
+  if(!confirm('Reset layout?')) return;
   state.items=[]; state.selId=null; pushHistory(); render();
 };
 $('#btnUndo').onclick=undo; $('#btnRedo').onclick=redo;
@@ -127,21 +127,21 @@ $('#loadFile').onchange=(e)=>{
     try{
       const o=JSON.parse(fr.result);
       state.env=o.env||'moon'; state.crewN=o.crewN||2; state.shell=o.shell||state.shell; state.items=o.items||[];
-      $('#envSel').value=state.env; $('#crewN').value=state.crewN; $('#capN').textContent=state.crewN;
+      $('#envSel').value=state.env; $('#crewSel').value=String(state.crewN); $('#capN').textContent=state.crewN;
       rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render);
-    }catch{ alert('JSON inválido'); }
+    }catch{ alert('Invalid JSON'); }
   };
   fr.readAsText(f);
 };
 
-$('#crewN').onchange=(e)=>{ state.crewN=parseInt(e.target.value||2,10); $('#capN').textContent=state.crewN; };
+$('#crewSel').onchange=(e)=>{ state.crewN=parseInt(e.target.value||'2',10); $('#capN').textContent=state.crewN; };
 $('#envSel').onchange=(e)=>{ state.env=e.target.value; loadBackgrounds().then(render); };
 $('#btnSim').onclick=()=>openSimulation();
 
 $('#viewSel').onchange=(e)=>{ state.view=e.target.value; computePPM(); render(); };
-$('#floorSel').onchange=(e)=>{ state.floor=parseInt(e.target.value,10); $('#floorBadge').textContent=`Piso activo: ${state.floor}`; render(); };
+$('#floorSel').onchange=(e)=>{ state.floor=parseInt(e.target.value,10); $('#floorBadge').textContent=`Active floor: ${state.floor}`; render(); };
 
-// ---------- Atajos: mover/rotar/eliminar ----------
+// Shortcuts: move/rotate/delete
 window.addEventListener('keydown',(e)=>{
   const it=currentSel();
   const step = e.shiftKey? 1.0 : 0.1;
@@ -189,7 +189,7 @@ async function getModuleSprite(key, view){
 }
 loadBackgrounds();
 
-// ---------- Escala ----------
+// ---------- Scaling ----------
 function computePPM(){
   const M=state.margin;
   let w_m,h_m;
@@ -208,25 +208,25 @@ function viewCenter(){
   return {x:R, y:R + L/2};
 }
 
-// ---------- Inserción módulos ----------
+// ---------- Insert modules ----------
 function insertModule(key,center=true){
   const def=MODULES.find(m=>m.key===key); if(!def) return;
   const sz=Math.max(2, Math.sqrt(def.nhv)||2);
   const it={
     id:nextId++, key, name:def.name,
     floor:state.floor, x:0, y:0, w:sz, h:sz, rot:0, locked:false,
-    geometry:'rect' // por defecto TODOS rectangulares
+    geometry:'rect' // default: rectangular
   };
   if(key==='corr'){ it.w=1.2; it.h=4; }
-  if(key==='stairs'){ it.w=2; it.h=2; } // no se agrega automáticamente
+  if(key==='stairs'){ it.w=2; it.h=2; } // never auto-add
   if(center){ const c=viewCenter(); it.x=c.x-it.w/2; it.y=c.y-it.h/2; }
   state.items.push(it); state.selId=it.id; pushHistory(); render();
 }
 
-// ---------- Dibujo casco + interior gris ----------
+// ---------- Draw shell + interior ----------
 function drawBackground(){
   const k=state.view, img=state.bgImg[k]; if(!img) return;
-  ctx.save(); ctx.globalAlpha=.3; // 70% transparencia
+  ctx.save(); ctx.globalAlpha=1.0; // no transparency now
   const rC=cv.width/cv.height, rI=img.width/img.height;
   let w=cv.width,h=cv.height,x=0,y=0;
   if(rI>rC){ h=cv.height; w=h*rI; x=(cv.width-w)/2; } else { w=cv.width; h=w/rI; y=(cv.height-h)/2; }
@@ -235,8 +235,8 @@ function drawBackground(){
 function drawShellInterior(){
   ctx.save();
   const R=m2p(state.shell.radius), L=m2p(state.shell.length), cx=cv.width/2;
-  ctx.fillStyle='rgba(180,190,205,0.21)'; // gris interior +15%
-  ctx.strokeStyle='rgba(80,120,200,0.9)'; ctx.lineWidth=2;
+  ctx.fillStyle='rgba(180,190,205,0.21)'; // keep subtle inner volume
+  ctx.strokeStyle='rgba(98,150,230,0.95)'; ctx.lineWidth=2;
   if(state.view==='top'){
     const w=R*2, h=L, left=cx-R, top=(cv.height-h)/2;
     ctx.fillRect(left,top,w,h);
@@ -247,12 +247,10 @@ function drawShellInterior(){
     drawFloorLines(left,top,w,h, m2p(state.shell.gap));
   }else{
     const h=L+R*2, top=(cv.height-h)/2, left=cx-R, right=cx+R;
-    // tapa superior y volumen
     ctx.beginPath(); ctx.moveTo(left,top+R);
     ctx.arc(cx, top+R, R, Math.PI, 0,false);
     ctx.lineTo(right, top+R+L); ctx.lineTo(left, top+R+L); ctx.closePath();
     ctx.fill(); ctx.stroke();
-    // paredes
     ctx.beginPath(); ctx.moveTo(left,top+R); ctx.lineTo(left,top+R+L);
     ctx.moveTo(right,top+R); ctx.lineTo(right,top+R+L); ctx.stroke();
     drawFloorLines(left,top+R, right-left, L, m2p(state.shell.gap));
@@ -260,7 +258,7 @@ function drawShellInterior(){
   ctx.restore();
 }
 function drawFloorLines(left,top,w,h,gap){
-  ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(80,120,200,0.55)';
+  ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(98,150,230,0.6)';
   const n=state.shell.floors;
   for(let i=1;i<n;i++){ const y=top+i*gap; if(y<top+h-1){ ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(left+w,y); ctx.stroke(); } }
   ctx.setLineDash([]); ctx.restore();
@@ -269,30 +267,27 @@ function drawFloorLines(left,top,w,h,gap){
 function drawScaleBar(){
   const base_m=5, pxLen=m2p(base_m), x0=16, y0=cv.height-28;
   ctx.save();
-  ctx.strokeStyle='#ddd'; ctx.lineWidth=2;
+  ctx.strokeStyle='#e8eef9'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+pxLen,y0); ctx.stroke();
   for(let i=0;i<=base_m;i++){ const x=x0+m2p(i), h=(i%5===0)?10:6; ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y0-h); ctx.stroke(); }
-  ctx.fillStyle='#ddd'; ctx.font='12px system-ui';
+  ctx.fillStyle='#e8eef9'; ctx.font='12px system-ui';
   ctx.fillText(`${base_m} m`, x0+pxLen+6, y0+4);
-  ctx.fillText(`Escala: 1 m = ${state.ppm} px`, x0, y0-16);
+  ctx.fillText(`Scale: 1 m = ${state.ppm} px`, x0, y0-16);
   ctx.restore();
 }
 
 function getColor(key){ const m=MODULES.find(x=>x.key===key); return m?m.color:'#4aa3ff'; }
 
-// ---------- Dibujo de módulos ----------
+// ---------- Draw modules ----------
 async function drawModule(it){
   const x=m2p(it.x), y=m2p(it.y), w=m2p(it.w), h=m2p(it.h);
   const sprite = await getModuleSprite(it.key, state.view);
   ctx.save();
   const cx=x+w/2, cy=y+h/2; ctx.translate(cx,cy); ctx.rotate(rad(it.rot)); ctx.translate(-cx,-cy);
 
-  // FONDO gris “piso” del módulo (oscurecido +15%)
-  ctx.fillStyle='rgba(210,220,230,0.35)';
-  if(state.view==='top' && it.key==='sleep'){
-    const r=Math.min(w,h)/2;
-    ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
-  }else{
+  // Module "floor" gray: removed for SLEEP (as requested). Kept for others.
+  if(!(it.key==='sleep')){
+    ctx.fillStyle='rgba(210,220,230,0.30)';
     ctx.fillRect(x,y,w,h);
   }
 
@@ -300,25 +295,24 @@ async function drawModule(it){
     const rS = sprite.width/sprite.height;
     let dw=w, dh=h;
     if(w/h > rS){ dw = h*rS; } else { dh = w/rS; }
-    ctx.globalAlpha = 0.92;
+    ctx.globalAlpha = 0.95;
     ctx.drawImage(sprite, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
     ctx.globalAlpha = 1.0;
   }else{
-    ctx.fillStyle = hex2rgba(getColor(it.key), .85);
-    // Sueño: Top circular, Front/Side rectangular (coherentes)
+    ctx.fillStyle = hex2rgba(getColor(it.key), .9);
+    // Sleep: circle on TOP, rectangle on FRONT/SIDE
     if(state.view==='top' && it.key==='sleep'){
       const r=Math.min(w,h)/2;
       ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.fill();
     }else if(state.view==='top' && it.geometry==='rhomb'){
-      ctx.beginPath();
-      ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x+w/2,y); ctx.lineTo(x+w,y+h/2); ctx.lineTo(x+w/2,y+h); ctx.lineTo(x,y+h/2); ctx.closePath(); ctx.fill();
     }else{
       roundRect(ctx,x,y,w,h,6,true,false);
     }
   }
 
-  // borde (colisión o normal)
-  const col = collides(it) ? 'rgba(239,68,68,0.9)' : 'rgba(74,163,255,0.9)';
+  // outline
+  const col = collides(it) ? 'rgba(239,68,68,0.95)' : 'rgba(102,176,255,0.95)';
   ctx.strokeStyle = col; ctx.lineWidth = 2;
   if(state.view==='top' && it.key==='sleep'){
     const r=Math.min(w,h)/2; ctx.beginPath(); ctx.arc(x+w/2,y+h/2,r,0,Math.PI*2); ctx.stroke();
@@ -328,11 +322,11 @@ async function drawModule(it){
     ctx.strokeRect(x,y,w,h);
   }
 
-  // etiqueta y badge Pn
-  ctx.fillStyle='#0b0f17'; ctx.font='12px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
-  ctx.fillStyle='rgba(20,40,77,.85)'; ctx.strokeStyle='rgba(41,74,122,.9)'; ctx.lineWidth=1; const bw=34,bh=16;
-  ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
-  ctx.fillStyle='#9fc5ff'; ctx.fillText(`P${it.floor}`, x+w-bw+8,y+16);
+  // label + floor badge
+  ctx.fillStyle='#07111e'; ctx.font='12.5px system-ui'; ctx.fillText(shortName(it.name), x+6, y+14);
+  ctx.fillStyle='rgba(18,36,72,.9)'; ctx.strokeStyle='rgba(55,96,155,.95)'; ctx.lineWidth=1;
+  const bw=34,bh=16; ctx.fillRect(x+w-bw-4,y+4,bw,bh); ctx.strokeRect(x+w-bw-4,y+4,bw,bh);
+  ctx.fillStyle='#bfe0ff'; ctx.fillText(`F${it.floor}`, x+w-bw+7,y+16);
 
   ctx.restore();
 
@@ -355,9 +349,9 @@ function drawHandles(x,y,w,h){
   const pts=[[x,y],[x+w/2,y],[x+w,y],[x+w,y+h/2],[x+w,y+h],[x+w/2,y+h],[x,y+h],[x,y+h/2]];
   ctx.save();
   ctx.fillStyle='#fff';
-  pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#0b0f17'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
-  ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
-  ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaf'; ctx.fill(); ctx.strokeStyle='#0b0f17'; ctx.stroke();
+  pts.forEach(p=>{ ctx.fillRect(p[0]-hs/2,p[1]-hs/2,hs,hs); ctx.strokeStyle='#07111e'; ctx.strokeRect(p[0]-hs/2,p[1]-hs/2,hs,hs); });
+  ctx.beginPath(); ctx.arc(x+w/2,y+h/2, hs+1,0,Math.PI*2); ctx.fillStyle='#ffe08a'; ctx.fill(); ctx.strokeStyle='#07111e'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+w/2,y-18, hs,0,Math.PI*2); ctx.fillStyle='#aaccff'; ctx.fill(); ctx.strokeStyle='#07111e'; ctx.stroke();
 }
 
 async function render(){
@@ -368,7 +362,7 @@ async function render(){
   drawScaleBar(); updateScore();
 }
 
-// ---------- Interacción ratón ----------
+// ---------- Mouse interaction ----------
 function currentSel(){ return state.items.find(i=>i.id===state.selId); }
 function itemBoxPx(it){ return {x:m2p(it.x), y:m2p(it.y), w:m2p(it.w), h:m2p(it.h)}; }
 function pointInBoxPx(p, box){ const X=m2p(p.x), Y=m2p(p.y); return (X>=box.x&&X<=box.x+box.w&&Y>=box.y&&Y<=box.y+box.h); }
@@ -422,7 +416,7 @@ function pickItem(p){
   return null;
 }
 
-// ---------- Colisiones ----------
+// ---------- Collisions ----------
 function collides(A){
   const a={x:A.x,y:A.y,w:A.w,h:A.h,f:A.floor};
   for(const B of state.items){ if(B.id===A.id||B.floor!==A.floor) continue;
@@ -436,26 +430,26 @@ function collides(A){
   return false;
 }
 
-// ---------- Propiedades ----------
+// ---------- Properties ----------
 function updateProp(){
   const box=$('#propBox'); const it=currentSel();
-  if(!it){ box.innerHTML='<div class="hint">Seleccioná un módulo…</div>'; return; }
+  if(!it){ box.innerHTML='<div class="hint">Select a module…</div>'; return; }
   box.innerHTML=`
-    <div class="kv"><div>Nombre</div><input class="ro" value="${it.name}" readonly></div>
-    <div class="kv"><div>Piso</div><input id="pFloor" type="number" min="1" max="${state.shell.floors}" value="${it.floor}"></div>
-    <div class="kv"><div>Geometría</div>
+    <div class="kv"><div>Name</div><input class="ro" value="${it.name}" readonly></div>
+    <div class="kv"><div>Floor</div><input id="pFloor" type="number" min="1" max="${state.shell.floors}" value="${it.floor}"></div>
+    <div class="kv"><div>Geometry</div>
       <select id="pGeom">
-        <option value="rect" ${it.geometry==='rect'?'selected':''}>Prisma rectangular</option>
-        <option value="cube" ${it.geometry==='cube'?'selected':''}>Cúbica</option>
-        <option value="rhomb" ${it.geometry==='rhomb'?'selected':''}>Rómbica</option>
+        <option value="rect" ${it.geometry==='rect'?'selected':''}>Rectangular prism</option>
+        <option value="cube" ${it.geometry==='cube'?'selected':''}>Cubic</option>
+        <option value="rhomb" ${it.geometry==='rhomb'?'selected':''}>Rhombic</option>
       </select>
     </div>
     <div class="kv"><div>X (m)</div><input id="pX" type="number" step="0.1" value="${it.x.toFixed(2)}"></div>
     <div class="kv"><div>Y (m)</div><input id="pY" type="number" step="0.1" value="${it.y.toFixed(2)}"></div>
-    <div class="kv"><div>Ancho (m)</div><input id="pW" type="number" step="0.1" value="${it.w.toFixed(2)}"></div>
-    <div class="kv"><div>Largo (m)</div><input id="pH" type="number" step="0.1" value="${it.h.toFixed(2)}"></div>
-    <div class="kv"><div>Rotación (°)</div><input id="pR" type="number" step="1" value="${it.rot.toFixed(0)}"></div>
-    <div class="kv"><div>Bloqueado</div><input id="pLock" type="checkbox" ${it.locked?'checked':''}></div>
+    <div class="kv"><div>Width (m)</div><input id="pW" type="number" step="0.1" value="${it.w.toFixed(2)}"></div>
+    <div class="kv"><div>Depth (m)</div><input id="pH" type="number" step="0.1" value="${it.h.toFixed(2)}"></div>
+    <div class="kv"><div>Rotation (°)</div><input id="pR" type="number" step="1" value="${it.rot.toFixed(0)}"></div>
+    <div class="kv"><div>Locked</div><input id="pLock" type="checkbox" ${it.locked?'checked':''}></div>
   `;
   $('#pGeom').onchange=(e)=>{ it.geometry=e.target.value; updateProp(); render(); pushHistory(); };
   ['pFloor','pX','pY','pW','pH','pR','pLock'].forEach(id=>{
@@ -473,17 +467,13 @@ function updateProp(){
   });
 }
 
-// ---------- Score: diseño + supervivencia ----------
+// ---------- Score ----------
 function updateScore(){
-  // Diseño base
   let base=0.5, vol=0.5, mass=1.0, mult=0.5;
   let collisions=0; for(const it of state.items.filter(i=>i.floor===state.floor)) if(collides(it)) collisions++;
   base = Math.max(0, base - Math.min(1, collisions*0.05));
   const design = Math.max(0, Math.min(100, (base*0.4 + vol*0.2 + mass*0.2 + mult*0.2)*100 ));
-
-  // Supervivencia (0..1)
   const surv = computeSurvivalFactor();
-
   const final = +(design * surv).toFixed(1);
   $('#scColl').textContent=collisions.toFixed(2);
   $('#scMass').textContent=state.items.reduce((s,i)=>s+(MODULES.find(m=>m.key===i.key)?.mass||0),0);
@@ -495,9 +485,9 @@ function computeSurvivalFactor(){
   const N=state.crewN;
   const counts = key=> state.items.filter(i=>i.key===key).length;
   const needs = [
-    ['sleep','Sueño'],
-    ['hygiene','Higiene'],
-    ['galley','Alimentación'],
+    ['sleep','Sleep'],
+    ['hygiene','Hygiene'],
+    ['galley','Food'],
     ['eclss','ECLSS'],
     ['airlock','Airlock']
   ].map(([k,lab])=>{
@@ -512,28 +502,28 @@ function computeSurvivalFactor(){
   return surv;
 }
 
-// ---------- Simulación ----------
+// ---------- Simulation ----------
 function openSimulation(){
   const needs = computeSurvivalFactor._lastNeeds || (computeSurvivalFactor(), computeSurvivalFactor._lastNeeds);
-  const days = needs.some(n=>n.ok<1) ? 0 : 30; // placeholder simple
-  const sugg = needs.filter(n=>n.ok<1).map(n=>`Falta ${n.req-n.have} × ${n.label} (req=${n.req} para N=${state.crewN})`);
+  const days = needs.some(n=>n.ok<1) ? 0 : 30; // simple placeholder
+  const sugg = needs.filter(n=>n.ok<1).map(n=>`Add ${n.req-n.have} × ${n.label} (req=${n.req} for N=${state.crewN})`);
   const html = `
     <div class="sim-grid">
       <div class="callout">
-        <div class="kpi"><b>Días estimados:</b> ${days}</div>
-        <div><b>Supervivencia (0–1):</b> ${computeSurvivalFactor().toFixed(2)}</div>
-        <div><b>N tripulantes:</b> ${state.crewN}</div>
+        <div class="kpi"><b>Estimated days:</b> ${days}</div>
+        <div><b>Survival (0–1):</b> ${computeSurvivalFactor().toFixed(2)}</div>
+        <div><b>Crew size:</b> ${state.crewN}</div>
       </div>
       <div class="callout">
-        <b>Estado por función</b>
+        <b>Status by function</b>
         <ul>
           ${needs.map(n=>`<li class="${n.ok<1?'bad':'good'}">${n.label}: ${n.have}/${n.req}</li>`).join('')}
         </ul>
       </div>
       <div class="callout" style="grid-column:1/3">
-        <b>Sugerencias</b>
+        <b>Suggestions</b>
         <ul>
-          ${sugg.length? sugg.map(s=>`<li>${s}</li>`).join('') : '<li>Todo cubierto para misión corta (30 días).</li>'}
+          ${sugg.length? sugg.map(s=>`<li>${s}</li>`).join('') : '<li>All covered for a short mission (30 days).</li>'}
         </ul>
       </div>
     </div>`;
@@ -542,7 +532,7 @@ function openSimulation(){
 }
 $('#closeSim').onclick=()=>$('#simModal').classList.remove('show');
 
-// ---------- Guía de capacidades ----------
+// ---------- Guide ----------
 $('#btnGuide').onclick=()=>{ mountCapTable(); $('#guideModal').classList.add('show'); };
 $('#closeGuide').onclick=()=>$('#guideModal').classList.remove('show');
 $$('.tap').forEach(b=>b.onclick=()=>{
