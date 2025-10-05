@@ -182,9 +182,9 @@ const asset=(p)=>`${ASSET_ROOT}/${p}`;
 // anchorX/anchorY: zoom anchor (0=left/top, 0.5=center, 1=right/bottom)
 const BG_CONF = {
   moon: {
-    top:   { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
-    front: { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
-    side:  { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    top:   { mode:'cover',  scale:0.50, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    front: { mode:'cover',  scale:0.50, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
+    side:  { mode:'cover',  scale:0.50, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
   },
   mars: {
     top:   { mode:'cover',  scale:1.00, offsetX:0, offsetY:0, anchorX:0.5, anchorY:0.5 },
@@ -625,3 +625,4 @@ $('#btnApplyCaps').onclick=()=>{
 // ---------- Boot ----------
 function boot(){ rebuildFloorOptions(); computePPM(); loadBackgrounds().then(render); pushHistory(); }
 boot();
+
